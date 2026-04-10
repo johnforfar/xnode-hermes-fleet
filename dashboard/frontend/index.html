@@ -277,6 +277,39 @@
       vertical-align: bottom;
     }
     @keyframes dots { 0% {content:'';} 25%{content:'.';} 50%{content:'..';} 75%{content:'...';} }
+
+    /* Suggest chips for AI ask */
+    .suggest-chip {
+      background: var(--bg-elev); color: var(--fg-dim);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 0.4rem 0.85rem; cursor: pointer;
+      font-family: inherit; font-size: 0.74rem;
+      transition: all 0.15s;
+    }
+    .suggest-chip:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+    /* Sub-task rows in modal */
+    .child-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 0.7rem;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-size: 0.8rem;
+    }
+    .child-row:hover { border-color: var(--accent); }
+    .child-row .child-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .child-row .child-status {
+      font-size: 0.62rem; padding: 0.1rem 0.45rem;
+      border-radius: 999px; font-family: "JetBrains Mono", monospace;
+      text-transform: uppercase; color: var(--fg-faint);
+      background: var(--bg-elev-2); border: 1px solid var(--border);
+    }
+
+    /* Calendar drop highlight */
+    .cal-day.drop-target { background: var(--accent-dim); border-color: var(--accent); }
+
+    /* Gantt bar dragging */
+    .gantt-bar.dragging { opacity: 0.5; cursor: grabbing; }
+    .gantt-bar { cursor: grab; }
     .agent-card .agent-current {
       font-size: 0.72rem; color: var(--fg-dim); margin-top: 0.35rem;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1053,6 +1086,7 @@
   <main>
     <div class="topbar">
       <h2 id="project-name">Loading…</h2>
+      <input type="search" id="global-search" placeholder="🔍 search across all tabs… (title, description, agent)" style="flex:1; min-width:240px; max-width:480px;">
       <select id="project-select"></select>
       <button class="primary" id="new-task-btn">+ New task</button>
     </div>
@@ -1194,17 +1228,30 @@
     <!-- ─── AI Insights ─── -->
     <div class="view" id="view-ai">
       <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
-        <h2 style="margin:0; font-size:1.2rem; flex:1;">Live executive briefing</h2>
+        <h2 style="margin:0; font-size:1.2rem; flex:1;">Executive briefing</h2>
         <button class="primary" id="ai-generate" style="background:var(--accent); color:#0a0a0a; border:none; padding:0.6rem 1rem; border-radius:10px; font-weight:600; cursor:pointer; font-family:inherit;">✦ Generate briefing</button>
       </div>
       <div style="font-size:0.8rem; color:var(--fg-dim); line-height:1.55;">
-        Streamed live from <strong style="color:var(--cyan);">hermes3:3b</strong> running on this Xnode's
-        <strong style="color:var(--cyan);">hermes-ollama</strong> container. The model receives a structured
-        snapshot of the current board (status counts, overdue tasks, velocity, agent loads) and writes a short
-        chief-of-staff briefing on bottlenecks and recommendations. No RAG required — the dataset summary fits
-        in one prompt.
+        Streamed live from <strong style="color:var(--cyan);">hermes3:3b</strong> on the <strong style="color:var(--cyan);">hermes-ollama</strong> container.
+        No RAG — the full board state is small enough to summarise into a single prompt.
       </div>
-      <div class="ai-output empty" id="ai-output">click "Generate briefing" to ask hermes3 for an executive analysis of the current board</div>
+      <div class="ai-output empty" id="ai-output">click "Generate briefing" for an executive summary of the current board</div>
+
+      <h2 style="margin:1rem 0 0.25rem; font-size:1.2rem;">Ask anything</h2>
+      <div style="font-size:0.8rem; color:var(--fg-dim);">type a question about the board — hermes3 sees the same context the briefing uses, plus 40 most recent tasks by ID/title/status/role.</div>
+      <form id="ai-ask-form" style="display:flex; gap:0.5rem;">
+        <input id="ai-ask-input" type="text" autocomplete="off"
+          placeholder="e.g. who has the most overdue work? what should we ship first? what's blocking the launch?"
+          style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:0.7rem 0.9rem; font-family:inherit; font-size:0.9rem;">
+        <button type="submit" class="primary" id="ai-ask-send" style="background:var(--accent); color:#0a0a0a; border:none; padding:0.7rem 1.1rem; border-radius:10px; font-weight:600; cursor:pointer; font-family:inherit;">Ask →</button>
+      </form>
+      <div id="ai-ask-suggestions" style="display:flex; flex-wrap:wrap; gap:0.4rem; font-size:0.75rem;">
+        <button type="button" class="suggest-chip" data-q="What is the biggest bottleneck on the board right now?">biggest bottleneck</button>
+        <button type="button" class="suggest-chip" data-q="Which agent is most overloaded?">most overloaded agent</button>
+        <button type="button" class="suggest-chip" data-q="What should we ship in the next 7 days to reduce risk?">next 7 days plan</button>
+        <button type="button" class="suggest-chip" data-q="Which 3 tasks should the CEO personally unblock?">CEO unblock list</button>
+      </div>
+      <div class="ai-output empty" id="ai-ask-output" style="margin-top:0.75rem; min-height:120px;">answers stream here</div>
     </div>
   </main>
 
@@ -1234,6 +1281,27 @@
       <div class="modal-section">
         <div class="section-label">Due date</div>
         <input type="datetime-local" id="modal-due-date" style="background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.85rem; font-family:inherit; font-size:0.85rem;">
+      </div>
+
+      <div class="modal-section" id="modal-parent-section" style="display:none;">
+        <div class="section-label">Parent task</div>
+        <div id="modal-parent" style="font-size:0.85rem;"></div>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-label">Sub-tasks <span style="text-transform:none; color:var(--fg-faint); font-weight:400; letter-spacing:0;">— delegate to another agent</span></div>
+        <div id="modal-children" style="display:flex; flex-direction:column; gap:0.4rem; margin-bottom:0.6rem;"></div>
+        <div style="display:flex; gap:0.4rem;">
+          <input id="modal-subtask-title" placeholder="new sub-task title…" style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.8rem; font-family:inherit; font-size:0.85rem;">
+          <select id="modal-subtask-role" style="background:var(--bg-elev-2); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.7rem; font-family:inherit; font-size:0.82rem;">
+            <option value="ceo">ceo</option>
+            <option value="pm">pm</option>
+            <option value="coder">coder</option>
+            <option value="researcher">researcher</option>
+            <option value="writer">writer</option>
+          </select>
+          <button class="primary" id="modal-subtask-add" style="background:var(--accent); color:#0a0a0a; border:none; padding:0.55rem 1rem; border-radius:8px; font-weight:600; cursor:pointer; font-family:inherit; font-size:0.83rem;">+ Add</button>
+        </div>
       </div>
 
       <div class="modal-section">
@@ -1370,7 +1438,20 @@
       sortBy: 'created_at',
       sortDir: 'desc',
       calMonth: null,
+      searchQ: '',
     };
+
+    function filteredTasks() {
+      const q = state.searchQ.trim().toLowerCase();
+      if (!q) return state.tasks;
+      return state.tasks.filter(t => {
+        return (t.title || '').toLowerCase().includes(q)
+            || (t.description || '').toLowerCase().includes(q)
+            || (t.assigned_role || '').toLowerCase().includes(q)
+            || (t.status || '').toLowerCase().includes(q)
+            || (t.assignees || []).some(a => a.toLowerCase().includes(q));
+      });
+    }
 
     // ---- API helpers ----
     async function api(path, opts = {}) {
@@ -1486,7 +1567,7 @@
 
     function renderBoard() {
       const cols = Object.fromEntries(COLUMNS.map(c => [c, []]));
-      for (const t of state.tasks) if (cols[t.status]) cols[t.status].push(t);
+      for (const t of filteredTasks()) if (cols[t.status]) cols[t.status].push(t);
       for (const col of COLUMNS) {
         const tasks = cols[col];
         const listEl = $(`col-${col}`);
@@ -1581,6 +1662,37 @@
         else if (t.error) { out.classList.remove('empty'); out.textContent = 'Error: ' + t.error; }
         else { out.classList.add('empty'); out.textContent = t.status === 'in_progress' ? 'agent is working on this…' : 'no output yet'; }
 
+        // Parent + children
+        const parentSection = $('modal-parent-section');
+        if (t.parent) {
+          parentSection.style.display = 'block';
+          $('modal-parent').innerHTML = `
+            <div class="child-row" data-id="${t.parent.id}">
+              <span style="color:var(--fg-faint); font-family:'JetBrains Mono',monospace; font-size:0.7rem;">↑ #${t.parent.id}</span>
+              <span class="child-title">${escape(t.parent.title)}</span>
+              <span class="child-status">${escape(t.parent.status)}</span>
+            </div>
+          `;
+          $$('.child-row', $('modal-parent')).addEventListener('click', () => openTask(t.parent.id));
+        } else {
+          parentSection.style.display = 'none';
+        }
+        const childrenEl = $('modal-children');
+        const children = t.children || [];
+        if (children.length === 0) {
+          childrenEl.innerHTML = '<div style="font-size:0.75rem; color:var(--fg-faint); padding:0.4rem 0;">no sub-tasks yet — add one below to delegate</div>';
+        } else {
+          childrenEl.innerHTML = children.map(c => `
+            <div class="child-row" data-id="${c.id}">
+              <span style="color:var(--fg-faint); font-family:'JetBrains Mono',monospace; font-size:0.7rem;">#${c.id}</span>
+              <span class="role-pill ${c.assigned_role}" style="font-size:0.6rem; padding:0.1rem 0.4rem; border-radius:999px;">${escape(c.assigned_role)}</span>
+              <span class="child-title">${escape(c.title)}</span>
+              <span class="child-status">${escape(c.status)}</span>
+            </div>
+          `).join('');
+          $$$('.child-row', childrenEl).forEach(r => r.addEventListener('click', () => openTask(parseInt(r.dataset.id))));
+        }
+
         $('task-modal').classList.add('open');
       } catch (e) {
         alert('Failed to load task: ' + e.message);
@@ -1600,6 +1712,25 @@
         btn.classList.add('active');
       });
     });
+    $('modal-subtask-add').addEventListener('click', async () => {
+      const title = $('modal-subtask-title').value.trim();
+      if (!title || !state.currentTaskId) return;
+      const role = $('modal-subtask-role').value;
+      try {
+        await api(`/tasks/${state.currentTaskId}/subtask`, {
+          method: 'POST',
+          body: JSON.stringify({ title, role, status: 'todo' }),
+        });
+        $('modal-subtask-title').value = '';
+        // re-open same task to refresh children
+        const id = state.currentTaskId;
+        loadTasks();
+        openTask(id);
+      } catch (e) {
+        alert('Add subtask failed: ' + e.message);
+      }
+    });
+
     $('modal-save').addEventListener('click', async () => {
       if (!state.currentTaskId) return;
       const newStatus = $$('.status-btn.active', $('modal-status-btns'))?.dataset.status;
@@ -1674,6 +1805,20 @@
       loadTasks();
     });
 
+    // Global search — re-renders the active view in place, no API hit
+    let _searchT = null;
+    $('global-search').addEventListener('input', e => {
+      state.searchQ = e.target.value;
+      clearTimeout(_searchT);
+      _searchT = setTimeout(() => {
+        const v = document.querySelector('.tab.active')?.dataset.view;
+        if (v === 'board') renderBoard();
+        else if (v === 'list') renderList();
+        else if (v === 'gantt') renderGantt();
+        else if (v === 'calendar') renderCalendar();
+      }, 80);
+    });
+
     // ---- Tabs ----
     $$$('.tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1723,7 +1868,7 @@
     // ---- List view ----
     function renderList() {
       const tbody = $('list-body');
-      const sorted = [...state.tasks].sort((a, b) => {
+      const sorted = [...filteredTasks()].sort((a, b) => {
         const av = a[state.sortBy] ?? '';
         const bv = b[state.sortBy] ?? '';
         const cmp = String(av).localeCompare(String(bv));
@@ -1760,7 +1905,7 @@
     // ---- Gantt view ----
     function renderGantt() {
       const root = $('gantt');
-      const tasks = state.tasks.filter(t => t.due_date || t.created_at);
+      const tasks = filteredTasks().filter(t => t.due_date || t.created_at);
       if (!tasks.length) { root.innerHTML = '<div class="empty-state">no tasks</div>'; return; }
       // Compute date window
       const now = new Date();
@@ -1815,8 +1960,55 @@
         `;
       }).join('');
       root.innerHTML = html;
-      $$$('.gantt-bar', root).forEach(b => b.addEventListener('click', () => openTask(parseInt(b.dataset.id))));
+      // Stash the current window so the persistent drag handlers can compute dates
+      ganttWindow = { minMs: minD.getTime(), spanMs: span };
+
+      $$$('.gantt-bar', root).forEach(bar => {
+        bar.addEventListener('mousedown', (e) => {
+          ganttDrag = {
+            bar,
+            startX: e.clientX,
+            startLeft: parseFloat(bar.style.left),
+            timelineWidth: bar.parentElement.offsetWidth,
+            moved: false,
+            id: parseInt(bar.dataset.id),
+          };
+          e.preventDefault();
+        });
+      });
     }
+    // Persistent gantt drag state — listeners attached once at boot
+    let ganttDrag = null;
+    let ganttWindow = null;
+    window.addEventListener('mousemove', (e) => {
+      if (!ganttDrag) return;
+      const dx = e.clientX - ganttDrag.startX;
+      if (Math.abs(dx) > 3) ganttDrag.moved = true;
+      const dxPct = (dx / ganttDrag.timelineWidth) * 100;
+      ganttDrag.bar.style.left = (ganttDrag.startLeft + dxPct) + '%';
+      ganttDrag.bar.classList.add('dragging');
+    });
+    window.addEventListener('mouseup', async () => {
+      if (!ganttDrag) return;
+      const ds = ganttDrag;
+      ganttDrag = null;
+      ds.bar.classList.remove('dragging');
+      if (!ds.moved) { openTask(ds.id); return; }
+      const finalLeftPct = parseFloat(ds.bar.style.left);
+      const widthPct = parseFloat(ds.bar.style.width);
+      const centerPct = finalLeftPct + widthPct / 2;
+      const newDate = new Date(ganttWindow.minMs + (centerPct / 100) * ganttWindow.spanMs);
+      try {
+        await api(`/tasks/${ds.id}/update`, {
+          method: 'POST',
+          body: JSON.stringify({ due_date: newDate.toISOString() }),
+        });
+        loadTasks();
+      } catch (err) {
+        alert('Reschedule failed: ' + err.message);
+        renderGantt();
+      }
+    });
 
     // ---- Calendar view ----
     function renderCalendar() {
@@ -1830,7 +2022,7 @@
 
       // Group tasks by yyyy-mm-dd of due_date
       const byDay = {};
-      for (const t of state.tasks) {
+      for (const t of filteredTasks()) {
         if (!t.due_date) continue;
         const d = new Date(t.due_date);
         const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -1877,7 +2069,14 @@
         tEl.dataset.role = t.assigned_role || '';
         tEl.title = t.title;
         tEl.textContent = t.title;
+        tEl.draggable = true;
         tEl.addEventListener('click', () => openTask(t.id));
+        tEl.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', String(t.id));
+          e.dataTransfer.effectAllowed = 'move';
+          tEl.style.opacity = '0.4';
+        });
+        tEl.addEventListener('dragend', () => { tEl.style.opacity = ''; });
         el.appendChild(tEl);
       });
       if (tasks.length > 3) {
@@ -1886,6 +2085,26 @@
         more.textContent = `+${tasks.length - 3} more`;
         el.appendChild(more);
       }
+      // Drop target — move task to this day
+      el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drop-target'); });
+      el.addEventListener('dragleave', () => el.classList.remove('drop-target'));
+      el.addEventListener('drop', async e => {
+        e.preventDefault();
+        el.classList.remove('drop-target');
+        const id = parseInt(e.dataTransfer.getData('text/plain'));
+        if (!id) return;
+        // Use noon local on the dropped day to dodge timezone weirdness
+        const dropDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+        try {
+          await api(`/tasks/${id}/update`, {
+            method: 'POST',
+            body: JSON.stringify({ due_date: dropDate.toISOString() }),
+          });
+          loadTasks();
+        } catch (err) {
+          alert('Reschedule failed: ' + err.message);
+        }
+      });
       return el;
     }
 
@@ -2126,6 +2345,66 @@
       } catch (e) {
         out.textContent = 'Error: ' + e.message;
       }
+    });
+
+    // ---- AI Insights — ask anything ----
+    async function aiAsk(question) {
+      const out = $('ai-ask-output');
+      out.classList.remove('empty');
+      out.textContent = '';
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      out.appendChild(cursor);
+      let buf = '';
+      try {
+        const r = await fetch('/api/insights/ai/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question }),
+        });
+        if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let raw = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          raw += dec.decode(value, { stream: true });
+          let idx;
+          while ((idx = raw.indexOf('\n\n')) !== -1) {
+            const block = raw.slice(0, idx);
+            raw = raw.slice(idx + 2);
+            let event = 'message', data = '';
+            for (const line of block.split('\n')) {
+              if (line.startsWith('event: ')) event = line.slice(7);
+              else if (line.startsWith('data: ')) data += (data ? '\n' : '') + line.slice(6);
+            }
+            if (event === 'token') {
+              buf += data.replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+              out.textContent = buf;
+              out.appendChild(cursor);
+            } else if (event === 'error') {
+              out.textContent = 'Error: ' + data;
+            } else if (event === 'done') {
+              cursor.remove();
+            }
+          }
+        }
+      } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+      }
+    }
+    $('ai-ask-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const q = $('ai-ask-input').value.trim();
+      if (!q) return;
+      aiAsk(q);
+    });
+    $$$('.suggest-chip', $('ai-ask-suggestions')).forEach(b => {
+      b.addEventListener('click', () => {
+        $('ai-ask-input').value = b.dataset.q;
+        aiAsk(b.dataset.q);
+      });
     });
 
     // ---- Chat-with-agent ----

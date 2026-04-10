@@ -678,6 +678,27 @@ def get_task(task_id):
         for ts_field in ("created_at", "started_at", "completed_at", "due_date"):
             if task.get(ts_field):
                 task[ts_field] = task[ts_field].isoformat()
+        # Children (sub-tasks)
+        cur.execute(
+            """
+            SELECT id, title, status, assigned_role, due_date, assignees
+            FROM tasks WHERE parent_task_id = %s ORDER BY created_at
+            """,
+            (task_id,),
+        )
+        children = []
+        for c in cur.fetchall():
+            if c.get("due_date"):
+                c["due_date"] = c["due_date"].isoformat()
+            children.append(c)
+        task["children"] = children
+        # Parent
+        if task.get("parent_task_id"):
+            cur.execute(
+                "SELECT id, title, status FROM tasks WHERE id = %s",
+                (task["parent_task_id"],),
+            )
+            task["parent"] = cur.fetchone()
         cur.execute(
             "SELECT id, role, content, ts FROM task_messages WHERE task_id = %s ORDER BY id",
             (task_id,),
@@ -749,6 +770,44 @@ def update_task(task_id):
         cur.execute(sql, params)
         conn.commit()
     return jsonify({"id": task_id, "updated": True})
+
+
+@app.route("/api/tasks/<int:task_id>/subtask", methods=["POST"])
+def create_subtask(task_id):
+    """Spawn a child task under an existing one.
+
+    Used for the CEO→PM→specialist delegation chain. The child inherits
+    the parent's project_id and gets parent_task_id set so the modal
+    can render the hierarchy. Status defaults to 'todo' so the assigned
+    agent's worker picks it up immediately.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    role = (data.get("role") or "pm").strip()
+    description = (data.get("description") or "").strip()
+    status = (data.get("status") or "todo").strip()
+    if status not in ("backlog", "todo", "in_progress", "review", "done", "failed"):
+        return jsonify({"error": "invalid status"}), 400
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT project_id FROM tasks WHERE id = %s", (task_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "parent task not found"}), 404
+        project_id = row[0]
+        cur.execute(
+            """
+            INSERT INTO tasks (project_id, parent_task_id, title, description,
+                               assigned_role, status, assignees)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (project_id, task_id, title, description, role, status, [role]),
+        )
+        new_id = cur.fetchone()[0]
+        conn.commit()
+    return jsonify({"id": new_id, "parent_id": task_id, "title": title, "role": role})
 
 
 @app.route("/api/agents/<name>", methods=["GET"])
@@ -1070,6 +1129,124 @@ def insights_ai():
     def gen():
         try:
             yield f"event: context\ndata: {json.dumps({'lines': len(ctx_lines)})}\n\n"
+            with open_stream() as r:
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    tok = obj.get("response", "")
+                    if tok:
+                        safe = tok.replace("\\", "\\\\").replace("\n", "\\n")
+                        yield f"event: token\ndata: {safe}\n\n"
+                    if obj.get("done"):
+                        yield "event: done\ndata: {}\n\n"
+                        return
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(
+        stream_with_context(gen()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.route("/api/insights/ai/ask", methods=["POST"])
+def insights_ai_ask():
+    """Ask hermes3 a free-form question grounded in current board state.
+
+    Same context-block trick as the briefing endpoint — we serialise
+    the algo insights into a small structured block and prepend it to
+    the user's question. No RAG, just prompt stuffing on a small dataset.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "question required"}), 400
+    if len(question) > 1000:
+        return jsonify({"error": "question too long"}), 400
+
+    with app.test_request_context("/api/insights/algorithmic"):
+        algo = insights_algo().get_json()
+
+    # Pull the most useful task summaries (titles + status + role + due)
+    # so the LLM can name specific tasks in its answer.
+    with db_connect_dict() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, title, status, assigned_role, due_date
+            FROM tasks
+            ORDER BY
+              CASE status
+                WHEN 'in_progress' THEN 0
+                WHEN 'review' THEN 1
+                WHEN 'todo' THEN 2
+                WHEN 'done' THEN 3
+                ELSE 4
+              END,
+              due_date NULLS LAST
+            LIMIT 60
+            """
+        )
+        sample = cur.fetchall()
+
+    ctx = [
+        "BOARD STATE:",
+        f"- {sum(algo['by_status'].values())} tasks total",
+        "- by status: " + ", ".join(f"{k}={v}" for k, v in algo["by_status"].items()),
+        "- by agent: " + ", ".join(f"{k}={v}" for k, v in algo["by_role"].items()),
+        f"- overdue: {algo['overdue_count']} · unassigned: {algo['unassigned_count']} · no due date: {algo['no_due_date_count']}",
+        f"- avg lead time: {int(algo['avg_lead_seconds']/3600)}h",
+        f"- 14-day velocity: {sum(d['done'] for d in algo['velocity_14d'])} tasks completed",
+        "",
+        "RECENT TASKS (id · status · role · title):",
+    ]
+    for t in sample[:40]:
+        due = ""
+        if t.get("due_date"):
+            due = " · due " + t["due_date"].strftime("%Y-%m-%d")
+        ctx.append(f"  #{t['id']} [{t['status']}] [{t['assigned_role']}] {t['title']}{due}")
+
+    prompt = (
+        "You are an experienced engineering chief of staff. Answer the user's "
+        "question using ONLY the board state below. Be specific — name task IDs "
+        "and agents when relevant. Be direct and brief (under 220 words). If the "
+        "answer isn't in the data, say so.\n\n"
+        + "\n".join(ctx)
+        + f"\n\nQUESTION: {question}\n\nANSWER:"
+    )
+
+    def open_stream():
+        last_err = None
+        for url in OLLAMA_URLS:
+            try:
+                r = http.post(
+                    f"{url}/api/generate",
+                    json={
+                        "model": CHAT_MODEL,
+                        "prompt": prompt,
+                        "stream": True,
+                        "options": {"temperature": 0.4, "num_predict": 450},
+                    },
+                    stream=True,
+                    timeout=600,
+                )
+                r.raise_for_status()
+                return r
+            except Exception as e:
+                last_err = e
+                continue
+        raise last_err or RuntimeError("ollama unreachable")
+
+    def gen():
+        try:
             with open_stream() as r:
                 for line in r.iter_lines(decode_unicode=True):
                     if not line:
