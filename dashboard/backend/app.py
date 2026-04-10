@@ -32,11 +32,14 @@ from typing import Optional
 
 import psycopg2
 import psycopg2.extras
+import requests as http
 from flask import Flask, Response, jsonify, request, stream_with_context
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 PORT = int(os.environ.get("PORT", "5000"))
 BIND_HOST = os.environ.get("BIND_HOST", "127.0.0.1")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://hermes-ollama:11434")
+CHAT_MODEL = os.environ.get("CHAT_MODEL", "hermes3:3b")
 
 # Default agents seeded on startup. The role names match the container
 # names (e.g. hermes-agent-pm → role "pm"). Adding a new role: add an
@@ -427,6 +430,88 @@ def move_task(task_id):
         )
         conn.commit()
     return jsonify({"id": task_id, "status": new_status})
+
+
+@app.route("/api/agents/<name>/chat/stream", methods=["POST"])
+def chat_with_agent(name):
+    """Stream a direct chat with one agent.
+
+    The user picks an agent (e.g. 'coder'), sends a message, and the
+    backend opens a connection to ollama (using the agent's system
+    prompt from the agents table), streams tokens back via SSE.
+
+    This is the "talk to little team members" feature — same agent
+    persona as the polling worker, but synchronous instead of going
+    through the task queue.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "empty message"}), 400
+    if len(message) > 4000:
+        return jsonify({"error": "message too long (max 4000 chars)"}), 400
+
+    # Look up the agent's persona
+    with db_connect_dict() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, name, role, system_prompt FROM agents WHERE name = %s",
+            (name,),
+        )
+        agent = cur.fetchone()
+    if not agent:
+        return jsonify({"error": f"agent '{name}' not found"}), 404
+
+    system_prompt = agent["system_prompt"]
+    full_prompt = (
+        f"{system_prompt}\n\n"
+        f"You are {agent['name']} ({agent['role']}). The user is talking to you "
+        f"directly as a team member. Respond conversationally, in character.\n\n"
+        f"USER: {message}\n\nYOUR RESPONSE:"
+    )
+
+    def generate():
+        try:
+            yield f"event: agent\ndata: {json.dumps({'name': agent['name'], 'role': agent['role']})}\n\n"
+            with http.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": CHAT_MODEL,
+                    "prompt": full_prompt,
+                    "stream": True,
+                    "options": {"temperature": 0.6, "num_predict": 300},
+                },
+                stream=True,
+                timeout=600,
+            ) as r:
+                r.raise_for_status()
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    token = obj.get("response", "")
+                    if token:
+                        safe = token.replace("\\", "\\\\").replace("\n", "\\n")
+                        yield f"event: token\ndata: {safe}\n\n"
+                    if obj.get("done"):
+                        yield "event: done\ndata: {}\n\n"
+                        return
+        except Exception as e:
+            log(f"chat-with-agent error: {e}")
+            err = json.dumps({"error": str(e)})
+            yield f"event: error\ndata: {err}\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.route("/api/events")

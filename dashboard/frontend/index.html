@@ -188,7 +188,18 @@
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 0.75rem 0.9rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
     }
+    .agent-card:hover {
+      border-color: var(--accent-border);
+      transform: translateY(-1px);
+      box-shadow: 0 0 18px var(--accent-dim);
+    }
+    .agent-card[data-role="pm"]         { border-left: 3px solid var(--accent); }
+    .agent-card[data-role="coder"]      { border-left: 3px solid var(--cyan); }
+    .agent-card[data-role="researcher"] { border-left: 3px solid var(--orange); }
+    .agent-card[data-role="writer"]     { border-left: 3px solid var(--purple); }
     .agent-card .agent-head {
       display: flex;
       justify-content: space-between;
@@ -581,6 +592,27 @@
     </div>
   </div>
 
+  <!-- Chat-with-agent modal -->
+  <div class="modal-backdrop" id="agent-chat-modal">
+    <div class="modal" style="max-width: 720px;">
+      <h3 id="agent-chat-title">Chat</h3>
+      <div class="modal-meta" id="agent-chat-meta"></div>
+      <div id="agent-chat-thread" style="display:flex; flex-direction:column; gap:0.75rem; max-height:55vh; overflow-y:auto; padding:0.5rem; background:var(--code-bg); border:1px solid var(--border); border-radius:10px; margin-bottom:1rem;">
+        <div style="color:var(--fg-faint); font-size:0.85rem; text-align:center; padding:1rem;">
+          start chatting with this agent — they respond live as a team member
+        </div>
+      </div>
+      <form id="agent-chat-form" style="display:flex; gap:0.5rem;">
+        <input id="agent-chat-input" type="text" placeholder="say hi to your team member…" autocomplete="off"
+          style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.7rem 0.85rem; font-family:inherit; font-size:0.92rem;">
+        <button type="submit" class="primary" id="agent-chat-send">Send</button>
+      </form>
+      <div class="modal-actions">
+        <button id="agent-chat-close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <!-- New task modal -->
   <div class="modal-backdrop" id="new-task-modal">
     <div class="modal">
@@ -685,7 +717,7 @@
     // ---- Render ----
     function renderAgents() {
       $('agents-strip').innerHTML = state.agents.map(a => `
-        <div class="agent-card">
+        <div class="agent-card" data-name="${escape(a.name)}" data-role="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
           <div class="agent-head">
             <div>
               <div class="agent-name">${escape(a.name)}</div>
@@ -693,9 +725,13 @@
             </div>
             <span class="agent-status ${escape(a.status || 'offline')}">${escape(a.status || 'offline')}</span>
           </div>
-          <div class="agent-current">${a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">idle</span>'}</div>
+          <div class="agent-current">${a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">idle · click to chat</span>'}</div>
         </div>
       `).join('');
+      // Wire each card to open the chat modal
+      $('agents-strip').querySelectorAll('.agent-card').forEach(card => {
+        card.addEventListener('click', () => openAgentChat(card.dataset.name));
+      });
     }
 
     const COLUMNS = ['backlog', 'todo', 'in_progress', 'review', 'done'];
@@ -809,6 +845,112 @@
       const p = state.projects.find(x => x.id === state.currentProjectId);
       if (p) $('project-name').textContent = p.name;
       loadTasks();
+    });
+
+    // ---- Chat-with-agent (SSE streaming) ----
+    let currentChatAgent = null;
+
+    function openAgentChat(name) {
+      const agent = state.agents.find(a => a.name === name);
+      if (!agent) return;
+      currentChatAgent = agent;
+      $('agent-chat-title').textContent = `Chat with ${agent.name}`;
+      $('agent-chat-meta').textContent = `${agent.role} · ${agent.status || 'offline'}`;
+      $('agent-chat-thread').innerHTML = `
+        <div style="color:var(--fg-faint); font-size:0.85rem; text-align:center; padding:1rem;">
+          start chatting with ${escape(agent.name)} — they respond live as your team member
+        </div>`;
+      $('agent-chat-input').value = '';
+      $('agent-chat-modal').classList.add('open');
+      setTimeout(() => $('agent-chat-input').focus(), 50);
+    }
+
+    function appendChatMsg(role, text) {
+      const div = document.createElement('div');
+      const isUser = role === 'user';
+      div.style.cssText = `
+        background: ${isUser ? 'var(--bg-elev-2)' : 'var(--bg-elev)'};
+        border: 1px solid var(--border);
+        border-left: 3px solid ${isUser ? 'var(--fg-dim)' : 'var(--accent)'};
+        border-radius: 8px;
+        padding: 0.75rem 0.9rem;
+        font-size: 0.9rem;
+        line-height: 1.55;
+        align-self: ${isUser ? 'flex-end' : 'flex-start'};
+        max-width: 88%;
+      `;
+      div.innerHTML = `<div style="font-size:0.7rem; color:var(--fg-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.3rem;">${isUser ? 'you' : escape(currentChatAgent.name)}</div><div class="chat-body">${escape(text)}</div>`;
+      $('agent-chat-thread').appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      return div.querySelector('.chat-body');
+    }
+
+    async function sendChatToAgent(message) {
+      if (!currentChatAgent) return;
+      // Clear placeholder if present
+      const thread = $('agent-chat-thread');
+      if (thread.children.length === 1 && thread.children[0].style.textAlign === 'center') {
+        thread.innerHTML = '';
+      }
+      appendChatMsg('user', message);
+      const bodyEl = appendChatMsg('agent', '');
+      bodyEl.innerHTML = '<span style="opacity:0.5;">…</span>';
+
+      try {
+        const r = await fetch(`/api/agents/${encodeURIComponent(currentChatAgent.name)}/chat/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+        if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
+
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let accumulated = '';
+        let firstToken = true;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+
+          let idx;
+          while ((idx = buf.indexOf('\n\n')) !== -1) {
+            const raw = buf.slice(0, idx);
+            buf = buf.slice(idx + 2);
+            let event = 'message';
+            let data = '';
+            for (const line of raw.split('\n')) {
+              if (line.startsWith('event: ')) event = line.slice(7);
+              else if (line.startsWith('data: ')) data += (data ? '\n' : '') + line.slice(6);
+            }
+            if (event === 'token') {
+              if (firstToken) { bodyEl.textContent = ''; firstToken = false; }
+              accumulated += data.replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+              bodyEl.textContent = accumulated;
+              bodyEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            } else if (event === 'error') {
+              try { const err = JSON.parse(data); bodyEl.innerHTML = `<span style="color:var(--error);">Error: ${escape(err.error)}</span>`; }
+              catch (e) { bodyEl.innerHTML = `<span style="color:var(--error);">Error: ${escape(data)}</span>`; }
+            }
+          }
+        }
+      } catch (e) {
+        bodyEl.innerHTML = `<span style="color:var(--error);">Network error: ${escape(e.message)}</span>`;
+      }
+    }
+
+    $('agent-chat-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const v = $('agent-chat-input').value.trim();
+      if (!v) return;
+      $('agent-chat-input').value = '';
+      sendChatToAgent(v);
+    });
+    $('agent-chat-close').addEventListener('click', () => $('agent-chat-modal').classList.remove('open'));
+    $('agent-chat-modal').addEventListener('click', e => {
+      if (e.target.id === 'agent-chat-modal') $('agent-chat-modal').classList.remove('open');
     });
 
     // ---- Live updates via SSE ----
