@@ -341,6 +341,76 @@
     /* Gantt bar dragging */
     .gantt-bar.dragging { opacity: 0.5; cursor: grabbing; }
     .gantt-bar { cursor: grab; }
+
+    /* Telemetry gauges */
+    .gauge-row {
+      display: flex; align-items: center; gap: 0.7rem;
+      padding: 0.55rem 0.7rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.78rem;
+    }
+    .gauge-row .gauge-label {
+      width: 70px;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg-dim);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .gauge-row .gauge-track {
+      flex: 1;
+      height: 18px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+    .gauge-row .gauge-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+      transition: width 0.6s ease;
+      border-radius: 4px;
+    }
+    .gauge-row .gauge-fill.high { background: linear-gradient(90deg, var(--warn), var(--orange)); }
+    .gauge-row .gauge-fill.crit { background: linear-gradient(90deg, var(--orange), var(--error)); }
+    .gauge-row .gauge-value {
+      width: 130px;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg);
+      font-size: 0.75rem;
+      text-align: right;
+    }
+
+    /* Demo reset button */
+    .danger-zone {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      background: rgba(255,85,114,0.06);
+      border: 1px dashed rgba(255,85,114,0.4);
+      border-radius: 10px;
+      display: flex; align-items: center; gap: 0.85rem;
+    }
+    .danger-zone .danger-text {
+      flex: 1;
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+    }
+    .danger-zone .danger-text strong { color: var(--error); }
+    .danger-zone button {
+      background: rgba(255,85,114,0.15);
+      color: var(--error);
+      border: 1px solid rgba(255,85,114,0.5);
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.83rem;
+      font-weight: 600;
+    }
+    .danger-zone button:hover { background: rgba(255,85,114,0.25); }
     .agent-card .agent-current {
       font-size: 0.72rem; color: var(--fg-dim); margin-top: 0.35rem;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -461,6 +531,15 @@
     .card .due-pill.overdue { color: var(--error); border-color: rgba(255,85,114,0.5); background: rgba(255,85,114,0.08); }
     .card .due-pill.soon    { color: var(--warn); border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.08); }
     .card .due-pill.missing { color: var(--error); border-color: rgba(255,85,114,0.5); background: rgba(255,85,114,0.08); }
+    .card .delegated-pill {
+      font-size: 0.6rem; padding: 0.13rem 0.4rem;
+      border-radius: 999px;
+      background: rgba(167,139,250,0.15);
+      color: var(--purple);
+      border: 1px solid rgba(167,139,250,0.4);
+      font-family: "JetBrains Mono", monospace;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
     .card .assignees-row {
       display: flex; gap: 0.2rem; margin-left: auto;
     }
@@ -1238,8 +1317,15 @@
           <div class="activity-feed" id="cc-activity"></div>
         </div>
         <div class="cc-panel">
-          <h4>Infrastructure</h4>
+          <h4>Infrastructure <span class="badge" id="cc-uptime">…</span></h4>
+          <div id="cc-telemetry" style="display:flex; flex-direction:column; gap:0.45rem; margin-bottom:0.85rem;"></div>
           <div id="cc-infra" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+          <div class="danger-zone">
+            <div class="danger-text">
+              <strong>Demo reset</strong> — wipes all tasks, re-seeds the launch plan, resets agents to idle. User-edited personas are preserved.
+            </div>
+            <button id="cc-reset">↺ Reset board</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1665,6 +1751,7 @@
       const avatars = assignees.length
         ? assignees.map(a => `<span class="avatar ${escape(a)}" title="${escape(a)}">${ROLE_INITIALS[a] || a.slice(0,2).toUpperCase()}</span>`).join('')
         : `<span class="avatar empty" title="no assignee">!</span>`;
+      const delegated = t.parent_task_id ? '<span class="delegated-pill" title="auto-delegated by an agent">⛓ delegated</span>' : '';
       return `
         <div class="card ${incomplete ? 'incomplete' : ''}" draggable="true" data-id="${t.id}" data-status="${status}">
           <div class="title">${escape(t.title)}</div>
@@ -1672,6 +1759,7 @@
           <div class="meta">
             <span class="role-pill ${role}">${escape(ROLE_LABELS[role] || role)}</span>
             <span class="due-pill ${dc}">${escape(dueLabel(t))}</span>
+            ${delegated}
             <span class="assignees-row">${avatars}</span>
           </div>
         </div>
@@ -2227,6 +2315,8 @@
             <span class="body">${a.html}</span>
           </div>
         `).join('');
+      // Telemetry — fire-and-forget; updates the gauges when ready
+      loadTelemetry();
       // Infrastructure
       $('cc-infra').innerHTML = `
         ${[
@@ -2249,6 +2339,71 @@
         </div>
       `;
     }
+
+    async function loadTelemetry() {
+      try {
+        const t = await api('/system/telemetry');
+        $('cc-uptime').textContent = `up ${t.uptime_human}`;
+        const cls = (pct) => pct > 85 ? 'crit' : pct > 60 ? 'high' : '';
+        const cpuPct = t.cpu?.load_1m_percent || 0;
+        const memPct = t.mem?.percent || 0;
+        const diskPct = t.disk?.percent || 0;
+        $('cc-telemetry').innerHTML = `
+          <div class="gauge-row">
+            <span class="gauge-label">CPU</span>
+            <div class="gauge-track"><div class="gauge-fill ${cls(cpuPct)}" style="width:${Math.min(cpuPct,100)}%"></div></div>
+            <span class="gauge-value">${cpuPct}% · ${t.cpu?.count || '?'} cores</span>
+          </div>
+          <div class="gauge-row">
+            <span class="gauge-label">RAM</span>
+            <div class="gauge-track"><div class="gauge-fill ${cls(memPct)}" style="width:${memPct}%"></div></div>
+            <span class="gauge-value">${(t.mem?.used_mb/1024).toFixed(1)} / ${(t.mem?.total_mb/1024).toFixed(1)} GB</span>
+          </div>
+          <div class="gauge-row">
+            <span class="gauge-label">Disk</span>
+            <div class="gauge-track"><div class="gauge-fill ${cls(diskPct)}" style="width:${diskPct}%"></div></div>
+            <span class="gauge-value">${t.disk?.used_gb} / ${t.disk?.total_gb} GB</span>
+          </div>
+          <div class="gauge-row">
+            <span class="gauge-label">Load</span>
+            <div class="gauge-track"><div class="gauge-fill ${cls(cpuPct)}" style="width:${Math.min(cpuPct,100)}%"></div></div>
+            <span class="gauge-value">${t.load?.['1m']} · ${t.load?.['5m']} · ${t.load?.['15m']}</span>
+          </div>
+          <div class="gauge-row">
+            <span class="gauge-label">Postgres</span>
+            <div class="gauge-track"><div class="gauge-fill" style="width:${Math.min((t.postgres_active_connections||0)*10,100)}%"></div></div>
+            <span class="gauge-value">${t.postgres_active_connections || 0} active · ${((t.postgres_db_bytes||0)/1024/1024).toFixed(1)} MB</span>
+          </div>
+        `;
+      } catch (e) {
+        $('cc-telemetry').innerHTML = `<div style="font-size:0.75rem; color:var(--error)">telemetry unavailable: ${escape(e.message)}</div>`;
+      }
+    }
+
+    // Refresh telemetry every 5s while command center is open
+    setInterval(() => {
+      if (document.querySelector('.tab.active')?.dataset.view === 'command') loadTelemetry();
+    }, 5000);
+
+    $('cc-reset').addEventListener('click', async () => {
+      if (!confirm('Reset the entire board?\n\nThis wipes all tasks and re-seeds the launch plan. Agent personas are preserved.\n\nProceed?')) return;
+      const btn = $('cc-reset');
+      btn.textContent = '… resetting …';
+      btn.disabled = true;
+      try {
+        await api('/demo/reset', { method: 'POST' });
+        logActivity('<strong>demo reset</strong> — board re-seeded');
+        await loadProjects();
+        await loadAgents();
+        await loadTasks();
+        btn.textContent = '↺ Reset board';
+        btn.disabled = false;
+      } catch (e) {
+        alert('Reset failed: ' + e.message);
+        btn.textContent = '↺ Reset board';
+        btn.disabled = false;
+      }
+    });
 
     function logActivity(html) {
       const ts = new Date().toLocaleTimeString();

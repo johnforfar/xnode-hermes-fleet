@@ -597,7 +597,7 @@ def list_tasks():
     role = request.args.get("role")
 
     sql = """
-        SELECT t.id, t.project_id, t.title, t.description, t.status,
+        SELECT t.id, t.project_id, t.parent_task_id, t.title, t.description, t.status,
                t.assigned_role, t.assigned_agent_id, t.output, t.error,
                t.created_at, t.started_at, t.completed_at,
                t.due_date, t.assignees,
@@ -1274,6 +1274,119 @@ def insights_ai_ask():
             "Connection": "keep-alive",
         },
     )
+
+
+@app.route("/api/system/telemetry")
+def system_telemetry():
+    """Live host/container telemetry — CPU, RAM, disk, uptime, load.
+
+    Read straight from /proc and `df` inside the dashboard container.
+    Because we run as a systemd-nspawn container sharing the host kernel,
+    /proc/loadavg and /proc/meminfo show the host Xnode's real numbers.
+    Disk is the container's filesystem view, which is enough to demo.
+    """
+    out = {}
+    # Memory
+    try:
+        with open("/proc/meminfo") as f:
+            mem = {}
+            for line in f:
+                k, _, v = line.partition(":")
+                v = v.strip().split()
+                if v:
+                    mem[k.strip()] = int(v[0])  # kB
+            total = mem.get("MemTotal", 0)
+            avail = mem.get("MemAvailable", 0)
+            out["mem"] = {
+                "total_mb": round(total / 1024),
+                "used_mb": round((total - avail) / 1024),
+                "available_mb": round(avail / 1024),
+                "percent": round(((total - avail) / total) * 100, 1) if total else 0,
+            }
+    except Exception as e:
+        out["mem"] = {"error": str(e)}
+
+    # Load average + CPU count
+    try:
+        with open("/proc/loadavg") as f:
+            parts = f.read().split()
+            out["load"] = {
+                "1m": float(parts[0]),
+                "5m": float(parts[1]),
+                "15m": float(parts[2]),
+            }
+        cpu_count = 0
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.startswith("processor"):
+                    cpu_count += 1
+        out["cpu"] = {
+            "count": cpu_count,
+            "load_1m_percent": round((out["load"]["1m"] / cpu_count) * 100, 1) if cpu_count else 0,
+        }
+    except Exception as e:
+        out["cpu"] = {"error": str(e)}
+
+    # Uptime
+    try:
+        with open("/proc/uptime") as f:
+            up = float(f.read().split()[0])
+            out["uptime_seconds"] = int(up)
+            days = int(up // 86400)
+            hours = int((up % 86400) // 3600)
+            mins = int((up % 3600) // 60)
+            out["uptime_human"] = f"{days}d {hours}h {mins}m"
+    except Exception as e:
+        out["uptime_seconds"] = 0
+        out["uptime_human"] = "?"
+
+    # Disk — use os.statvfs on /
+    try:
+        st = os.statvfs("/")
+        total = st.f_blocks * st.f_frsize
+        free = st.f_bavail * st.f_frsize
+        used = total - free
+        out["disk"] = {
+            "total_gb": round(total / (1024**3), 1),
+            "used_gb": round(used / (1024**3), 1),
+            "free_gb": round(free / (1024**3), 1),
+            "percent": round((used / total) * 100, 1) if total else 0,
+        }
+    except Exception as e:
+        out["disk"] = {"error": str(e)}
+
+    # Postgres connection count + DB size
+    try:
+        with db_connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
+            out["postgres_active_connections"] = cur.fetchone()[0]
+            cur.execute("SELECT pg_database_size(current_database())")
+            out["postgres_db_bytes"] = cur.fetchone()[0]
+    except Exception as e:
+        out["postgres_active_connections"] = 0
+        out["postgres_db_bytes"] = 0
+
+    return jsonify(out)
+
+
+@app.route("/api/demo/reset", methods=["POST"])
+def demo_reset():
+    """Wipe all tasks and re-seed from the master launch plan.
+
+    Used to reset the board between demo runs. Also clears chat
+    history and resets agent statuses to idle. Agents are NOT deleted —
+    just their `current_task_id` and `status` are reset, and any
+    user-edited system_prompts are preserved.
+    """
+    with db_connect() as conn, conn.cursor() as cur:
+        # Cascade-delete will take care of task_messages
+        cur.execute("DELETE FROM tasks")
+        cur.execute("DELETE FROM projects")
+        cur.execute("UPDATE agents SET current_task_id = NULL, status = 'idle'")
+        conn.commit()
+    # Re-seed the launch plan
+    seed_demo_project()
+    return jsonify({"reset": True, "tasks_seeded": True})
 
 
 @app.route("/api/events")
