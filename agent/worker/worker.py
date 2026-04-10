@@ -135,11 +135,14 @@ def heartbeat(agent_id: int, status: str, current_task_id=None) -> None:
 
 
 def claim_task(agent_id: int):
-    """Atomically grab the oldest backlog task for our role.
+    """Atomically grab the oldest `todo` task for our role.
+
+    `backlog` is the manual staging column — humans drop tasks there, then
+    move them to `todo` when they're ready for an agent to pick up.
+    `todo` is the queue agents poll. This mirrors the OwnStartup design.
 
     Uses `FOR UPDATE SKIP LOCKED` so multiple workers (in case of duplicate
-    deploys) never claim the same task. Returns (task_id, title, description)
-    or None.
+    deploys) never claim the same task.
     """
     with db_connect() as conn, conn.cursor() as cur:
         cur.execute(
@@ -150,7 +153,7 @@ def claim_task(agent_id: int):
                 started_at = NOW()
             WHERE id = (
                 SELECT id FROM tasks
-                WHERE status = 'backlog'
+                WHERE status = 'todo'
                   AND assigned_role = %s
                 ORDER BY created_at
                 LIMIT 1

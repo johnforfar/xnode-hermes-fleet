@@ -8,26 +8,31 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    /* Openmesh design palette (matches openmesh.network and openmesh-support-agent) */
+    /* OwnStartup-inspired blue palette: deep navy with electric blue/cyan accents */
     :root {
-      --bg-grad: linear-gradient(180deg, #212121 0%, #0d0d0d 54%, #0c0c0c 100%);
-      --bg: #0c0c0c;
-      --bg-elev: #181818;
-      --bg-elev-2: #222222;
-      --bg-card: #1a1a1a;
-      --fg: #f5f5f5;
-      --fg-dim: #9a9a9a;
-      --fg-faint: #666666;
-      --accent: #3dff7f;
-      --accent-dim: rgba(61, 255, 127, 0.12);
-      --accent-border: rgba(61, 255, 127, 0.35);
-      --orange: #ff5f05;
-      --orange-dim: rgba(255, 95, 5, 0.12);
-      --blue: #58a6ff;
-      --border: #2a2a2a;
-      --border-strong: #3a3a3a;
-      --code-bg: #0a0a0a;
-      --error: #ff4d4d;
+      --bg-grad: linear-gradient(180deg, #0d1626 0%, #060b14 54%, #04080f 100%);
+      --bg: #04080f;
+      --bg-elev: #0e1726;
+      --bg-elev-2: #16223a;
+      --bg-card: #111c30;
+      --fg: #f1f5fb;
+      --fg-dim: #8b9bb6;
+      --fg-faint: #54668a;
+      --accent: #4f8dff;          /* primary electric blue */
+      --accent-bright: #6ba7ff;
+      --accent-dim: rgba(79, 141, 255, 0.14);
+      --accent-border: rgba(79, 141, 255, 0.4);
+      --cyan: #5ee5e0;
+      --orange: #ffa14a;          /* in-progress / review accent */
+      --orange-dim: rgba(255, 161, 74, 0.14);
+      --green: #4ade80;           /* done */
+      --green-dim: rgba(74, 222, 128, 0.14);
+      --purple: #a78bfa;          /* researcher/writer pills */
+      --pink: #f472b6;
+      --border: #1f2c44;
+      --border-strong: #2d3e5e;
+      --code-bg: #060b14;
+      --error: #ff5572;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -43,26 +48,26 @@
       overflow-x: hidden;
     }
 
-    /* === Aurora background (matches openmesh-support-agent) === */
+    /* === Aurora background — blue/purple drifting blobs === */
     .aurora { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; background: var(--bg-grad); }
     .aurora::before, .aurora::after, .aurora .layer {
       content: ""; position: absolute; inset: -25%;
-      filter: blur(80px); opacity: 0.5; mix-blend-mode: screen; will-change: transform;
+      filter: blur(90px); opacity: 0.45; mix-blend-mode: screen; will-change: transform;
     }
     .aurora::before {
-      background: radial-gradient(45% 35% at 30% 35%, #3dff7f 0%, transparent 60%),
-                  radial-gradient(35% 25% at 70% 60%, #18a85a 0%, transparent 60%);
+      background: radial-gradient(45% 35% at 30% 35%, #5b83f0 0%, transparent 60%),
+                  radial-gradient(35% 25% at 70% 60%, #2d4a96 0%, transparent 60%);
       animation: drift1 22s ease-in-out infinite alternate;
     }
     .aurora::after {
-      background: radial-gradient(35% 30% at 80% 20%, #ff5f05 0%, transparent 65%),
-                  radial-gradient(30% 25% at 20% 80%, #b03c00 0%, transparent 60%);
-      animation: drift2 28s ease-in-out infinite alternate; opacity: 0.3;
+      background: radial-gradient(35% 30% at 80% 20%, #8b5cf6 0%, transparent 65%),
+                  radial-gradient(30% 25% at 20% 80%, #4c1d95 0%, transparent 60%);
+      animation: drift2 28s ease-in-out infinite alternate; opacity: 0.35;
     }
     .aurora .layer {
-      background: radial-gradient(40% 30% at 60% 50%, #1e6a3f 0%, transparent 70%),
-                  radial-gradient(25% 20% at 15% 30%, #3dff7f 0%, transparent 70%);
-      animation: drift3 35s ease-in-out infinite alternate; opacity: 0.35;
+      background: radial-gradient(40% 30% at 60% 50%, #1e3a8a 0%, transparent 70%),
+                  radial-gradient(25% 20% at 15% 30%, #5ee5e0 0%, transparent 70%);
+      animation: drift3 35s ease-in-out infinite alternate; opacity: 0.4;
     }
     @keyframes drift1 {
       0% { transform: translate(0, 0) rotate(0deg) scale(1); }
@@ -232,16 +237,16 @@
       white-space: nowrap;
     }
 
-    /* === Kanban board === */
+    /* === Kanban board: 5 columns (backlog | todo | in_progress | review | done) === */
     .board {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1rem;
+      grid-template-columns: repeat(5, minmax(220px, 1fr));
+      gap: 0.85rem;
       flex: 1;
       min-height: 400px;
     }
     .column {
-      background: rgba(24, 24, 24, 0.6);
+      background: rgba(11, 17, 32, 0.6);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 0.85rem;
@@ -250,36 +255,42 @@
       gap: 0.75rem;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
+      min-width: 0;  /* allow shrink */
     }
     .column-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.25rem 0.5rem 0.5rem;
+      padding: 0.25rem 0.5rem 0.55rem;
       border-bottom: 1px solid var(--border);
     }
     .column-head .title {
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
+    .column-head .title .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block;
+    }
+    .column[data-col="backlog"] .dot     { background: var(--fg-faint); }
+    .column[data-col="todo"] .dot        { background: var(--accent); }
+    .column[data-col="in_progress"] .dot { background: var(--accent-bright); box-shadow: 0 0 8px var(--accent-bright); }
+    .column[data-col="review"] .dot      { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+    .column[data-col="done"] .dot        { background: var(--green); box-shadow: 0 0 8px var(--green); }
     .column-head .count {
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       color: var(--fg-dim);
       font-family: "JetBrains Mono", monospace;
       background: var(--code-bg);
       border: 1px solid var(--border);
       padding: 0.15rem 0.55rem;
       border-radius: 999px;
-    }
-    .column[data-col="backlog"] .title::before {
-      content: "○ "; color: var(--fg-dim);
-    }
-    .column[data-col="in_progress"] .title::before {
-      content: "◐ "; color: var(--orange);
-    }
-    .column[data-col="done"] .title::before {
-      content: "● "; color: var(--accent);
+      min-width: 1.5rem;
+      text-align: center;
     }
 
     .cards {
@@ -294,11 +305,20 @@
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
       border-radius: 10px;
       padding: 0.85rem 1rem;
       cursor: pointer;
       transition: all 0.15s ease;
+      position: relative;
     }
+    /* Per-status left ribbon — matches OwnStartup */
+    .card[data-status="backlog"]     { border-left-color: var(--fg-faint); }
+    .card[data-status="todo"]        { border-left-color: var(--accent); }
+    .card[data-status="in_progress"] { border-left-color: var(--accent-bright); }
+    .card[data-status="review"]      { border-left-color: var(--orange); }
+    .card[data-status="done"]        { border-left-color: var(--green); }
+    .card[data-status="failed"]      { border-left-color: var(--error); }
     .card:hover {
       border-color: var(--accent-border);
       transform: translateY(-1px);
@@ -336,10 +356,10 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .card .role-pill.pm { color: var(--accent); border-color: var(--accent-border); }
-    .card .role-pill.coder { color: var(--orange); border-color: rgba(255, 95, 5, 0.4); }
-    .card .role-pill.researcher { color: var(--blue); border-color: rgba(88, 166, 255, 0.4); }
-    .card .role-pill.writer { color: #c89eff; border-color: rgba(200, 158, 255, 0.4); }
+    .card .role-pill.pm { color: var(--accent); border-color: var(--accent-border); background: var(--accent-dim); }
+    .card .role-pill.coder { color: var(--cyan); border-color: rgba(94, 229, 224, 0.4); background: rgba(94, 229, 224, 0.10); }
+    .card .role-pill.researcher { color: var(--orange); border-color: rgba(255, 161, 74, 0.4); background: var(--orange-dim); }
+    .card .role-pill.writer { color: var(--purple); border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.10); }
     .card .timestamp {
       font-size: 0.7rem;
       color: var(--fg-faint);
@@ -507,26 +527,40 @@
     <!-- Agent strip -->
     <div class="agents-strip" id="agents-strip"></div>
 
-    <!-- Kanban board -->
+    <!-- Kanban board (5 columns, matches OwnStartup) -->
     <div class="board">
       <div class="column" data-col="backlog">
         <div class="column-head">
-          <span class="title">Backlog</span>
-          <span class="count" data-count="backlog">0</span>
+          <span class="title"><span class="dot"></span>Backlog</span>
+          <span class="count" id="count-backlog">0</span>
         </div>
         <div class="cards" id="col-backlog"></div>
       </div>
+      <div class="column" data-col="todo">
+        <div class="column-head">
+          <span class="title"><span class="dot"></span>To Do</span>
+          <span class="count" id="count-todo">0</span>
+        </div>
+        <div class="cards" id="col-todo"></div>
+      </div>
       <div class="column" data-col="in_progress">
         <div class="column-head">
-          <span class="title">In progress</span>
-          <span class="count" data-count="in_progress">0</span>
+          <span class="title"><span class="dot"></span>In Progress</span>
+          <span class="count" id="count-in_progress">0</span>
         </div>
         <div class="cards" id="col-in_progress"></div>
       </div>
+      <div class="column" data-col="review">
+        <div class="column-head">
+          <span class="title"><span class="dot"></span>Review</span>
+          <span class="count" id="count-review">0</span>
+        </div>
+        <div class="cards" id="col-review"></div>
+      </div>
       <div class="column" data-col="done">
         <div class="column-head">
-          <span class="title">Done</span>
-          <span class="count" data-count="done">0</span>
+          <span class="title"><span class="dot"></span>Done</span>
+          <span class="count" id="count-done">0</span>
         </div>
         <div class="cards" id="col-done"></div>
       </div>
@@ -569,6 +603,13 @@
           <option value="writer">writer — technical writer</option>
         </select>
       </div>
+      <div class="form-group">
+        <label for="nt-status">Start in</label>
+        <select id="nt-status">
+          <option value="todo" selected>To Do — agent will pick up immediately</option>
+          <option value="backlog">Backlog — manual staging, agent waits</option>
+        </select>
+      </div>
       <div class="modal-actions">
         <button id="nt-cancel">Cancel</button>
         <button class="primary" id="nt-create">Create task</button>
@@ -587,6 +628,7 @@
 
   <script>
     const $ = (id) => document.getElementById(id);
+    const $$ = (sel) => document.querySelector(sel);
     const escape = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
     const ROLE_LABELS = { pm: 'PM', coder: 'CODER', researcher: 'RESEARCHER', writer: 'WRITER' };
@@ -656,35 +698,43 @@
       `).join('');
     }
 
+    const COLUMNS = ['backlog', 'todo', 'in_progress', 'review', 'done'];
+
     function renderBoard() {
-      const cols = { backlog: [], in_progress: [], done: [] };
+      const cols = Object.fromEntries(COLUMNS.map(c => [c, []]));
       for (const t of state.tasks) {
         if (cols[t.status]) cols[t.status].push(t);
       }
-      for (const [col, tasks] of Object.entries(cols)) {
-        const el = $(`col-${col}`);
-        if (tasks.length === 0) {
-          el.innerHTML = '<div class="empty-state">no tasks here</div>';
-        } else {
-          el.innerHTML = tasks.map(renderCard).join('');
-          el.querySelectorAll('.card').forEach(c => {
-            c.addEventListener('click', () => openTask(parseInt(c.dataset.id)));
-          });
+      for (const col of COLUMNS) {
+        const tasks = cols[col];
+        const listEl = $(`col-${col}`);
+        const countEl = $(`count-${col}`);
+        if (listEl) {
+          if (tasks.length === 0) {
+            listEl.innerHTML = '<div class="empty-state">no tasks here</div>';
+          } else {
+            listEl.innerHTML = tasks.map(renderCard).join('');
+            listEl.querySelectorAll('.card').forEach(c => {
+              c.addEventListener('click', () => openTask(parseInt(c.dataset.id)));
+            });
+          }
         }
-        $(`[data-count="${col}"]`).textContent = tasks.length;
+        if (countEl) countEl.textContent = tasks.length;
       }
     }
 
     function renderCard(t) {
       const role = (t.assigned_role || 'pm').toLowerCase();
+      const status = t.status || 'todo';
       const time = t.created_at ? new Date(t.created_at).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+      const agent = t.assigned_agent_name ? `· @${escape(t.assigned_agent_name)}` : '';
       return `
-        <div class="card" data-id="${t.id}">
+        <div class="card" data-id="${t.id}" data-status="${status}">
           <div class="title">${escape(t.title)}</div>
           ${t.description ? `<div class="description">${escape(t.description)}</div>` : ''}
           <div class="meta">
             <span class="role-pill ${role}">${escape(ROLE_LABELS[role] || role)}</span>
-            <span class="timestamp">${escape(time)}</span>
+            <span class="timestamp">${escape(time)} ${agent}</span>
           </div>
         </div>
       `;
@@ -733,14 +783,17 @@
       if (!title) { alert('title required'); return; }
       const description = $('nt-description').value.trim();
       const role = $('nt-role').value;
+      const status = $('nt-status').value;
       try {
-        await api('/tasks', {
+        const created = await api('/tasks', {
           method: 'POST',
           body: JSON.stringify({
-            title, description, role,
+            title, description, role, status,
             project_id: state.currentProjectId,
           }),
         });
+        // If user picked todo status, move it there immediately so agent picks up
+        if (status !== 'todo' && status !== 'backlog') { /* ignore */ }
         $('nt-title').value = '';
         $('nt-description').value = '';
         $('new-task-modal').classList.remove('open');

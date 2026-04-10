@@ -146,7 +146,14 @@ def ensure_schema() -> None:
                 parent_task_id    INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
                 title             TEXT NOT NULL,
                 description       TEXT NOT NULL DEFAULT '',
-                status            TEXT NOT NULL DEFAULT 'backlog',
+                -- 5-state lifecycle (matches OwnStartup design):
+                --   backlog      → manual staging area, agents do NOT pick up
+                --   todo         → agent will claim on next poll
+                --   in_progress  → agent is currently working
+                --   review       → completed but needs human approval
+                --   done         → final
+                --   failed       → error path
+                status            TEXT NOT NULL DEFAULT 'todo',
                 assigned_role     TEXT NOT NULL,
                 assigned_agent_id INTEGER REFERENCES agents(id) ON DELETE SET NULL,
                 output            TEXT,
@@ -243,23 +250,20 @@ def health():
     with db_connect() as conn, conn.cursor() as cur:
         cur.execute("SELECT COUNT(*) FROM agents")
         agent_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks")
-        task_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status='backlog'")
-        backlog = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status='in_progress'")
-        in_progress = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM tasks WHERE status='done'")
-        done = cur.fetchone()[0]
+        cur.execute("SELECT status, COUNT(*) FROM tasks GROUP BY status")
+        by_status = {row[0]: row[1] for row in cur.fetchall()}
     return jsonify(
         {
             "status": "ok",
             "service": "hermes-dashboard",
             "agents": agent_count,
-            "tasks": task_count,
-            "backlog": backlog,
-            "in_progress": in_progress,
-            "done": done,
+            "tasks": sum(by_status.values()),
+            "backlog": by_status.get("backlog", 0),
+            "todo": by_status.get("todo", 0),
+            "in_progress": by_status.get("in_progress", 0),
+            "review": by_status.get("review", 0),
+            "done": by_status.get("done", 0),
+            "failed": by_status.get("failed", 0),
         }
     )
 
@@ -356,6 +360,9 @@ def create_task():
         return jsonify({"error": "title required"}), 400
     description = (data.get("description") or "").strip()
     role = (data.get("role") or "pm").strip()
+    status = (data.get("status") or "todo").strip()
+    if status not in ("backlog", "todo", "in_progress", "review", "done", "failed"):
+        return jsonify({"error": "invalid status"}), 400
     project_id = data.get("project_id")
     if not project_id:
         # Auto-assign to the first project for convenience
@@ -368,14 +375,14 @@ def create_task():
     with db_connect() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO tasks (project_id, title, description, assigned_role)
-            VALUES (%s, %s, %s, %s) RETURNING id
+            INSERT INTO tasks (project_id, title, description, assigned_role, status)
+            VALUES (%s, %s, %s, %s, %s) RETURNING id
             """,
-            (project_id, title, description, role),
+            (project_id, title, description, role, status),
         )
         task_id = cur.fetchone()[0]
         conn.commit()
-    return jsonify({"id": task_id, "title": title, "role": role})
+    return jsonify({"id": task_id, "title": title, "role": role, "status": status})
 
 
 @app.route("/api/tasks/<int:task_id>")
@@ -411,7 +418,7 @@ def get_task(task_id):
 def move_task(task_id):
     data = request.get_json(force=True, silent=True) or {}
     new_status = data.get("status")
-    if new_status not in ("backlog", "in_progress", "done", "failed"):
+    if new_status not in ("backlog", "todo", "in_progress", "review", "done", "failed"):
         return jsonify({"error": "invalid status"}), 400
     with db_connect() as conn, conn.cursor() as cur:
         cur.execute(
