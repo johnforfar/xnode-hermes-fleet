@@ -154,31 +154,38 @@
     /* === Tab bar === */
     .tabs {
       display: flex;
-      gap: 0.1rem;
-      border-bottom: 1px solid var(--border);
+      gap: 0.3rem;
+      padding: 0.4rem;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
       overflow-x: auto;
       scrollbar-width: thin;
     }
     .tab {
       background: transparent;
       color: var(--fg-dim);
-      border: none;
-      padding: 0.85rem 1.15rem;
+      border: 1px solid transparent;
+      padding: 0.55rem 0.95rem;
       font-family: inherit;
-      font-size: 0.88rem;
+      font-size: 0.84rem;
       font-weight: 500;
       cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: color 0.15s;
+      border-radius: 10px;
+      transition: all 0.15s;
       letter-spacing: -0.01em;
       white-space: nowrap;
-      display: flex; align-items: center; gap: 0.5rem;
+      display: flex; align-items: center; gap: 0.45rem;
     }
-    .tab:hover { color: var(--fg); background: rgba(255,255,255,0.02); }
+    .tab:hover {
+      color: var(--fg);
+      background: rgba(255, 255, 255, 0.04);
+    }
     .tab.active {
       color: var(--accent);
-      border-bottom-color: var(--accent);
       background: var(--accent-dim);
+      border-color: var(--accent-border);
+      box-shadow: 0 0 0 1px var(--accent-border), 0 4px 14px rgba(79, 141, 255, 0.18);
     }
     .tab .tab-icon { font-size: 0.95rem; opacity: 0.85; }
     .view { display: none; }
