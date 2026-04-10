@@ -140,6 +140,108 @@
     .infra-pill .led.off { background: var(--fg-faint); box-shadow: none; }
     .infra-pill .led.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
 
+    button.infra-pill {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      cursor: pointer;
+      color: var(--fg-dim);
+    }
+    button.infra-pill:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    button.model-pill { font-weight: 600; }
+    button.model-pill:hover #model-name { color: var(--accent); }
+    #queue-pill .led.busy { background: var(--warn); animation: pulse 1.5s ease-in-out infinite; }
+
+    /* Model picker modal */
+    .model-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .model-row:hover { border-color: var(--accent); transform: translateX(2px); }
+    .model-row.active {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    .model-row.blocked {
+      opacity: 0.55;
+      cursor: not-allowed;
+      border-color: rgba(255,85,114,0.35);
+    }
+    .model-row.blocked:hover { transform: none; }
+    .model-row .model-id {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.85rem;
+      color: var(--fg);
+      font-weight: 600;
+      flex: 1;
+    }
+    .model-row .model-label {
+      color: var(--fg-dim);
+      font-size: 0.8rem;
+      margin-top: 0.15rem;
+    }
+    .model-row .model-ram {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+    }
+    .model-row .model-ram.warn { background: rgba(255,161,74,0.12); color: var(--orange); border-color: rgba(255,161,74,0.4); }
+    .model-row .model-ram.blocked { background: rgba(255,85,114,0.12); color: var(--error); border-color: rgba(255,85,114,0.4); }
+    .model-row .model-state {
+      font-size: 0.68rem;
+      font-family: "JetBrains Mono", monospace;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+    }
+    .model-row .model-state.local { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,0.4); }
+    .model-row .model-state.remote { background: var(--bg-elev-2); color: var(--fg-faint); border: 1px solid var(--border); }
+    .model-row .model-actions { display: flex; gap: 0.4rem; margin-left: 0.5rem; }
+    .model-row button.mini-btn {
+      background: var(--bg-elev-2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.35rem 0.7rem; cursor: pointer;
+      font-family: inherit; font-size: 0.72rem; font-weight: 600;
+    }
+    .model-row button.mini-btn.primary {
+      background: var(--accent); color: #0a0a0a; border: none;
+    }
+
+    .pull-progress {
+      margin-top: 0.5rem;
+      padding: 0.5rem 0.7rem;
+      background: var(--bg-card);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.74rem;
+      color: var(--fg-dim);
+    }
+    .pull-progress .pull-bar {
+      margin-top: 0.35rem;
+      height: 6px;
+      background: var(--bg);
+      border-radius: 3px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .pull-progress .pull-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+      transition: width 0.3s;
+    }
+
     main {
       flex: 1;
       display: flex;
@@ -1207,7 +1309,15 @@
     </div>
     <div class="infra-strip" id="infra-strip">
       <span class="infra-pill"><span class="led"></span>postgres</span>
-      <span class="infra-pill"><span class="led"></span>ollama · hermes3:3b</span>
+      <button class="infra-pill model-pill" id="model-pill" title="click to change LLM model">
+        <span class="led" id="model-led"></span>
+        <span id="model-name">hermes3:3b</span>
+        <span id="model-tps" style="color:var(--cyan); margin-left:0.25rem;"></span>
+      </button>
+      <span class="infra-pill" id="queue-pill" title="inference queue depth">
+        <span class="led" id="queue-led"></span>
+        <span>queue </span><span id="queue-depth">0</span>
+      </span>
       <span class="infra-pill"><span class="led"></span><span id="agents-count">0</span> agents</span>
       <span class="infra-pill"><span class="led"></span><span id="tasks-count">0</span> tasks</span>
       <span class="infra-pill"><span class="led" id="sse-led"></span>live</span>
@@ -1495,6 +1605,34 @@
       <div class="modal-actions">
         <button id="agent-prompt-cancel">Cancel</button>
         <button class="primary" id="agent-prompt-save">Save persona</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model picker modal -->
+  <div class="modal-backdrop" id="model-modal">
+    <div class="modal" style="max-width: 720px;">
+      <h3>LLM model</h3>
+      <div class="modal-meta" id="model-modal-meta">running serially on the hermes-ollama container · Xnode has 16GB RAM</div>
+      <div style="font-size:0.74rem; color:var(--fg-faint); margin-bottom:0.85rem; line-height:1.5;">
+        Every inference (chat, briefing, ask, worker task, delegation) runs one-at-a-time through a single queue. Swapping models here takes effect on the very next call — workers re-read from postgres on every claim.
+        <span style="color:var(--warn)">Models larger than ~9 GB will OOM.</span>
+      </div>
+
+      <div class="section-label" style="margin-bottom:0.4rem; font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:var(--fg-faint); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">Recommended for this Xnode</div>
+      <div id="model-list" style="max-height:380px; overflow-y:auto;"></div>
+
+      <div class="modal-section" style="margin-top:1rem;">
+        <div class="section-label">Pull a custom model</div>
+        <div style="display:flex; gap:0.4rem;">
+          <input id="model-pull-input" placeholder="e.g. qwen2.5-coder:7b" style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.55rem 0.8rem; font-family:'JetBrains Mono',monospace; font-size:0.82rem;">
+          <button class="primary" id="model-pull-btn" style="background:var(--accent); color:#0a0a0a; border:none; padding:0.55rem 1rem; border-radius:8px; font-weight:600; cursor:pointer; font-family:inherit; font-size:0.83rem;">Pull</button>
+        </div>
+        <div id="pull-progress-wrap"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="model-close">Close</button>
       </div>
     </div>
   </div>
@@ -2340,6 +2478,185 @@
       `;
     }
 
+    // ---- Model picker ----
+    async function loadModels() {
+      try {
+        const d = await api('/models');
+        state.activeModel = d.active;
+        state.localModels = new Set((d.local || []).map(m => m.id));
+        $('model-name').textContent = d.active;
+        if (d.last_token_rate && d.last_token_rate.tps) {
+          $('model-tps').textContent = ` · ${d.last_token_rate.tps} tok/s`;
+        } else {
+          $('model-tps').textContent = '';
+        }
+        $('queue-depth').textContent = d.queue_depth || 0;
+        $('queue-led').className = (d.queue_depth || 0) > 0 ? 'led busy' : 'led';
+        return d;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function renderModelList(d) {
+      const list = $('model-list');
+      const rec = d.recommended || [];
+      const local = new Set((d.local || []).map(m => m.id));
+      list.innerHTML = rec.map(m => {
+        const isLocal = local.has(m.id);
+        const isActive = d.active === m.id;
+        const blocked = !m.ok;
+        const ramCls = blocked ? 'blocked' : (m.ram_gb > 7 ? 'warn' : '');
+        return `
+          <div class="model-row ${isActive ? 'active' : ''} ${blocked ? 'blocked' : ''}" data-id="${escape(m.id)}">
+            <div style="flex:1;">
+              <div class="model-id">${escape(m.id)}</div>
+              <div class="model-label">${escape(m.label)} · ${escape(m.notes)}</div>
+            </div>
+            <span class="model-ram ${ramCls}">${m.ram_gb} GB</span>
+            <span class="model-state ${isLocal ? 'local' : 'remote'}">${isLocal ? 'local' : 'not pulled'}</span>
+            <div class="model-actions">
+              ${isLocal
+                ? (isActive
+                    ? `<button class="mini-btn" disabled style="opacity:0.5">active</button>`
+                    : `<button class="mini-btn primary" data-action="select">Select</button>`)
+                : (blocked
+                    ? `<button class="mini-btn" disabled>too large</button>`
+                    : `<button class="mini-btn" data-action="pull">Pull</button>`)}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Also show any local models not in the recommended catalogue
+      const extras = (d.local || []).filter(m => !rec.some(r => r.id === m.id));
+      if (extras.length) {
+        list.innerHTML += `
+          <div class="section-label" style="margin:1rem 0 0.4rem; font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:var(--fg-faint); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">Other local models</div>
+        ` + extras.map(m => `
+          <div class="model-row ${d.active === m.id ? 'active' : ''}" data-id="${escape(m.id)}">
+            <div style="flex:1;">
+              <div class="model-id">${escape(m.id)}</div>
+              <div class="model-label">${m.size_gb} GB on disk</div>
+            </div>
+            <span class="model-state local">local</span>
+            <div class="model-actions">
+              ${d.active === m.id
+                ? `<button class="mini-btn" disabled style="opacity:0.5">active</button>`
+                : `<button class="mini-btn primary" data-action="select">Select</button>`}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Wire up button clicks
+      list.querySelectorAll('.model-row').forEach(row => {
+        row.querySelectorAll('button[data-action]').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = row.dataset.id;
+            const action = btn.dataset.action;
+            if (action === 'select') selectModel(id);
+            else if (action === 'pull') pullModel(id);
+          });
+        });
+      });
+    }
+
+    async function selectModel(id) {
+      try {
+        await api('/models/select', { method: 'POST', body: JSON.stringify({ model: id }) });
+        logActivity(`model changed to <strong>${escape(id)}</strong>`);
+        $('model-name').textContent = id;
+        $('model-tps').textContent = ' · warming…';
+        // Kick off warmup in the background
+        api('/models/warmup', { method: 'POST' }).then(w => {
+          if (w && w.seconds) {
+            $('model-tps').textContent = ` · warm in ${w.seconds}s`;
+            logActivity(`<strong>${escape(id)}</strong> warmed in ${w.seconds}s`);
+          }
+          loadModels();
+        }).catch(() => {});
+        // Refresh list to show new active highlight
+        const d = await api('/models');
+        renderModelList(d);
+      } catch (e) {
+        alert('Select failed: ' + e.message);
+      }
+    }
+
+    async function pullModel(id) {
+      const wrap = $('pull-progress-wrap');
+      wrap.innerHTML = `
+        <div class="pull-progress">
+          <div>pulling <strong>${escape(id)}</strong>… this can take several minutes on first run</div>
+          <div class="pull-bar"><div class="fill" style="width:0%"></div></div>
+          <div id="pull-status" style="margin-top:0.35rem;">starting</div>
+        </div>
+      `;
+      try {
+        const r = await fetch('/api/models/pull', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: id }),
+        });
+        if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let idx;
+          while ((idx = buf.indexOf('\n\n')) !== -1) {
+            const block = buf.slice(0, idx);
+            buf = buf.slice(idx + 2);
+            let event = 'message', data = '';
+            for (const line of block.split('\n')) {
+              if (line.startsWith('event: ')) event = line.slice(7);
+              else if (line.startsWith('data: ')) data += (data ? '\n' : '') + line.slice(6);
+            }
+            if (event === 'pull-progress') {
+              try {
+                const p = JSON.parse(data);
+                const pct = p.total ? Math.round((p.completed || 0) / p.total * 100) : 0;
+                wrap.querySelector('.fill').style.width = pct + '%';
+                $('pull-status').textContent = `${p.status || ''} ${pct}%`;
+              } catch {}
+            } else if (event === 'pull-done') {
+              $('pull-status').innerHTML = `<span style="color:var(--green)">✓ pulled ${escape(id)}</span>`;
+              wrap.querySelector('.fill').style.width = '100%';
+              const fresh = await api('/models');
+              renderModelList(fresh);
+              loadModels();
+            } else if (event === 'error') {
+              $('pull-status').innerHTML = `<span style="color:var(--error)">pull failed: ${escape(data)}</span>`;
+            }
+          }
+        }
+      } catch (e) {
+        $('pull-status').innerHTML = `<span style="color:var(--error)">pull failed: ${escape(e.message)}</span>`;
+      }
+    }
+
+    $('model-pill').addEventListener('click', async () => {
+      const d = await api('/models');
+      renderModelList(d);
+      $('model-modal').classList.add('open');
+    });
+    $('model-close').addEventListener('click', () => $('model-modal').classList.remove('open'));
+    $('model-modal').addEventListener('click', e => {
+      if (e.target.id === 'model-modal') $('model-modal').classList.remove('open');
+    });
+    $('model-pull-btn').addEventListener('click', () => {
+      const v = $('model-pull-input').value.trim();
+      if (!v) return;
+      pullModel(v);
+    });
+
+    // Poll the model + queue info every 2s while any view is active
+    setInterval(loadModels, 2000);
+
     async function loadTelemetry() {
       try {
         const t = await api('/system/telemetry');
@@ -2804,6 +3121,7 @@
         await loadProjects();
         await loadAgents();
         await loadTasks();
+        await loadModels();
         startEventStream();
       } catch (e) {
         console.error(e);

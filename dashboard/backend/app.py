@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
+import threading
 import time
 from datetime import datetime
 from typing import Optional
@@ -34,6 +36,54 @@ import psycopg2
 import psycopg2.extras
 import requests as http
 from flask import Flask, Response, jsonify, request, stream_with_context
+
+# ─── Serial inference queue ─────────────────────────────────────────────────
+# A single 16GB Xnode running hermes3 (or larger) cannot serve concurrent
+# inference requests reliably — concurrent generates either OOM or thrash.
+# We serialize ALL ollama generate calls through a single threading.Lock
+# and expose the queue depth so the UI can display it.
+INFERENCE_LOCK = threading.Lock()
+INFERENCE_QUEUE_DEPTH = 0
+INFERENCE_QUEUE_LOCK = threading.Lock()  # protects the depth counter
+LAST_TOKEN_RATE = {"tokens": 0, "seconds": 0.0, "tps": 0.0, "model": "", "ts": 0}
+
+THINK_RE = re.compile(r"<think>[\s\S]*?</think>", re.IGNORECASE)
+
+
+def queue_inc():
+    global INFERENCE_QUEUE_DEPTH
+    with INFERENCE_QUEUE_LOCK:
+        INFERENCE_QUEUE_DEPTH += 1
+        return INFERENCE_QUEUE_DEPTH
+
+
+def queue_dec():
+    global INFERENCE_QUEUE_DEPTH
+    with INFERENCE_QUEUE_LOCK:
+        INFERENCE_QUEUE_DEPTH = max(0, INFERENCE_QUEUE_DEPTH - 1)
+        return INFERENCE_QUEUE_DEPTH
+
+
+def strip_think_chunk(buf: str):
+    """Strip any complete <think>...</think> blocks from buf, return cleaned + remainder.
+
+    Used during streaming so the UI never shows model "thinking" tokens.
+    Returns (clean_text_to_emit, residual_buffer_to_keep_for_next_chunk).
+    If we're in the middle of a <think> tag, hold the residual until the
+    closing tag arrives.
+    """
+    # Fast path: no opening tag at all
+    if "<think" not in buf.lower():
+        return buf, ""
+    # Strip all complete blocks
+    cleaned = THINK_RE.sub("", buf)
+    # If there's an unclosed <think> still in the cleaned output, hold it
+    low = cleaned.lower()
+    open_idx = low.rfind("<think")
+    if open_idx >= 0 and "</think>" not in low[open_idx:]:
+        # Emit everything before the unclosed tag, hold the rest
+        return cleaned[:open_idx], cleaned[open_idx:]
+    return cleaned, ""
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 PORT = int(os.environ.get("PORT", "5000"))
@@ -57,6 +107,26 @@ def _ollama_candidates(primary: str) -> list[str]:
     return out
 
 OLLAMA_URLS = _ollama_candidates(OLLAMA_URL)
+
+
+# ─── Curated model catalogue for the 16GB Xnode ─────────────────────────────
+# Each entry: (id, label, approx_ram_gb, notes)
+# Anything over ~9GB will OOM on a 16GB host running our 6 containers.
+RECOMMENDED_MODELS = [
+    {"id": "hermes3:3b",      "label": "Hermes 3 · 3B",        "ram_gb": 2.0,  "ok": True,  "notes": "default — fast, NousResearch tool-calling model"},
+    {"id": "llama3.2:3b",     "label": "Llama 3.2 · 3B",       "ram_gb": 2.0,  "ok": True,  "notes": "Meta's small workhorse"},
+    {"id": "qwen2.5:3b",      "label": "Qwen 2.5 · 3B",        "ram_gb": 2.0,  "ok": True,  "notes": "Alibaba small, strong reasoning"},
+    {"id": "gemma2:2b",       "label": "Gemma 2 · 2B",         "ram_gb": 1.6,  "ok": True,  "notes": "Google tiny — fastest option"},
+    {"id": "phi3.5:3.8b",     "label": "Phi 3.5 · 3.8B",       "ram_gb": 2.3,  "ok": True,  "notes": "Microsoft compact reasoning"},
+    {"id": "qwen2.5:7b",      "label": "Qwen 2.5 · 7B",        "ram_gb": 4.7,  "ok": True,  "notes": "best mid-size for this Xnode"},
+    {"id": "llama3.1:8b",     "label": "Llama 3.1 · 8B",       "ram_gb": 4.9,  "ok": True,  "notes": "Meta mid-size"},
+    {"id": "mistral-nemo:12b","label": "Mistral Nemo · 12B",   "ram_gb": 7.1,  "ok": True,  "notes": "tight fit but works"},
+    {"id": "qwen2.5:14b",     "label": "Qwen 2.5 · 14B",       "ram_gb": 9.0,  "ok": True,  "notes": "absolute max for 16GB · slow"},
+    {"id": "qwen3:8b",        "label": "Qwen 3 · 8B (no-think)","ram_gb": 5.2,  "ok": True,  "notes": "thinking model — we strip <think> tags"},
+    {"id": "qwen2.5:32b",     "label": "Qwen 2.5 · 32B",       "ram_gb": 19.0, "ok": False, "notes": "WILL OOM — needs 24GB+ host"},
+    {"id": "llama3.3:70b",    "label": "Llama 3.3 · 70B",      "ram_gb": 42.0, "ok": False, "notes": "WILL OOM — needs 48GB+ host"},
+]
+DEFAULT_MODEL = os.environ.get("CHAT_MODEL", "hermes3:3b")
 
 # Default agents seeded on startup. The role names match the container
 # names (e.g. hermes-agent-pm → role "pm"). Adding a new role: add an
@@ -245,8 +315,185 @@ def ensure_schema() -> None:
         cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS reports_to TEXT")
         cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ")
         cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignees TEXT[] NOT NULL DEFAULT '{}'")
+        # v1.7: settings k/v store for things like the active LLM model
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS settings (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
     log("schema ensured")
+
+
+def setting_get(key: str, default: Optional[str] = None) -> Optional[str]:
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT value FROM settings WHERE key = %s", (key,))
+        row = cur.fetchone()
+        return row[0] if row else default
+
+
+def setting_set(key: str, value: str) -> None:
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO settings (key, value) VALUES (%s, %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """,
+            (key, value),
+        )
+        conn.commit()
+
+
+def get_active_model() -> str:
+    """The currently selected model — read fresh from settings on each call.
+
+    Workers and chat handlers both call this so a UI model swap takes
+    effect on the very next inference without a restart.
+    """
+    return setting_get("active_model", DEFAULT_MODEL) or DEFAULT_MODEL
+
+
+def open_ollama_post(path: str, body: dict, stream: bool = True, timeout: int = 600):
+    """Make a POST against ollama, trying every fallback URL.
+
+    Used by every code path in this file that talks to ollama so the
+    DNS-fallback logic (Lesson #13) lives in exactly one place.
+    """
+    last_err = None
+    for url in OLLAMA_URLS:
+        try:
+            r = http.post(f"{url}{path}", json=body, stream=stream, timeout=timeout)
+            r.raise_for_status()
+            return r
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err or RuntimeError("ollama unreachable")
+
+
+def stream_generate(prompt: str, *, num_predict: int = 400, temperature: float = 0.5,
+                    on_token=None, on_done=None):
+    """Serial-queued streaming generate.
+
+    Acquires the global INFERENCE_LOCK so only one inference runs at a
+    time on this Xnode (16GB RAM cannot handle concurrent generates).
+    Strips <think>...</think> on the fly. Tracks tokens/sec and writes
+    the result to LAST_TOKEN_RATE so the UI can show it.
+
+    `on_token(text)` and `on_done(stats)` are user-supplied callbacks.
+    Returns None — caller produces SSE events from the callbacks.
+    """
+    model = get_active_model()
+    body = {
+        "model": model,
+        "prompt": prompt,
+        "stream": True,
+        # think: false tells thinking-capable models (qwen3, deepseek-r1)
+        # to skip the <think> phase entirely. Models that don't support
+        # the flag ignore it; we strip <think> tags as a belt-and-braces
+        # fallback.
+        "think": False,
+        "options": {
+            "temperature": temperature,
+            "num_predict": num_predict,
+        },
+    }
+
+    queue_inc()
+    try:
+        with INFERENCE_LOCK:
+            t_start = time.monotonic()
+            n_tokens = 0
+            buf_for_think = ""
+            r = open_ollama_post("/api/generate", body, stream=True, timeout=600)
+            for line in r.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                tok = obj.get("response", "")
+                if tok:
+                    n_tokens += 1
+                    buf_for_think += tok
+                    clean, residual = strip_think_chunk(buf_for_think)
+                    buf_for_think = residual
+                    if clean and on_token:
+                        on_token(clean)
+                if obj.get("done"):
+                    elapsed = max(time.monotonic() - t_start, 0.001)
+                    tps = n_tokens / elapsed
+                    LAST_TOKEN_RATE.update({
+                        "tokens": n_tokens,
+                        "seconds": round(elapsed, 2),
+                        "tps": round(tps, 1),
+                        "model": model,
+                        "ts": int(time.time()),
+                    })
+                    if on_done:
+                        on_done({"tokens": n_tokens, "seconds": elapsed, "tps": tps, "model": model})
+                    return
+    finally:
+        queue_dec()
+
+
+def _sse_from_stream_generate(prompt: str, *, num_predict: int = 400,
+                              temperature: float = 0.5, prelude: tuple = None):
+    """Wrap stream_generate as a Flask SSE Response.
+
+    Runs the generate in a worker thread (so the lock can be held inside
+    it), pushes events through a queue, and the SSE generator drains them
+    to the client. Used by the briefing + ask + chat endpoints.
+    """
+    import queue as _q
+    events: "_q.Queue[tuple[str, str]]" = _q.Queue()
+
+    def worker():
+        try:
+            stream_generate(
+                prompt,
+                num_predict=num_predict,
+                temperature=temperature,
+                on_token=lambda t: events.put(("token", t)),
+                on_done=lambda stats: events.put(("done", json.dumps(stats))),
+            )
+        except Exception as e:
+            log(f"stream_generate error: {e}")
+            events.put(("error", json.dumps({"error": str(e)})))
+        finally:
+            events.put(("__close__", ""))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def gen():
+        # Tell the client what model + queue depth they're getting
+        meta = {"model": get_active_model(), "queue_depth": INFERENCE_QUEUE_DEPTH}
+        yield f"event: meta\ndata: {json.dumps(meta)}\n\n"
+        if prelude:
+            yield f"event: {prelude[0]}\ndata: {prelude[1]}\n\n"
+        while True:
+            ev, data = events.get()
+            if ev == "__close__":
+                return
+            if ev == "token":
+                safe = data.replace("\\", "\\\\").replace("\n", "\\n")
+                yield f"event: token\ndata: {safe}\n\n"
+            else:
+                yield f"event: {ev}\ndata: {data}\n\n"
+
+    return Response(
+        stream_with_context(gen()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 def seed_agents() -> None:
@@ -898,61 +1145,11 @@ def chat_with_agent(name):
         f"USER: {message}\n\nYOUR RESPONSE:"
     )
 
-    def open_ollama_stream():
-        last_err = None
-        for url in OLLAMA_URLS:
-            try:
-                r = http.post(
-                    f"{url}/api/generate",
-                    json={
-                        "model": CHAT_MODEL,
-                        "prompt": full_prompt,
-                        "stream": True,
-                        "options": {"temperature": 0.6, "num_predict": 300},
-                    },
-                    stream=True,
-                    timeout=600,
-                )
-                r.raise_for_status()
-                return r
-            except Exception as e:
-                last_err = e
-                log(f"ollama fallback: {url} failed ({e}), trying next")
-                continue
-        raise last_err or RuntimeError("no ollama url succeeded")
-
-    def generate():
-        try:
-            yield f"event: agent\ndata: {json.dumps({'name': agent['name'], 'role': agent['role']})}\n\n"
-            with open_ollama_stream() as r:
-                r.raise_for_status()
-                for line in r.iter_lines(decode_unicode=True):
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except Exception:
-                        continue
-                    token = obj.get("response", "")
-                    if token:
-                        safe = token.replace("\\", "\\\\").replace("\n", "\\n")
-                        yield f"event: token\ndata: {safe}\n\n"
-                    if obj.get("done"):
-                        yield "event: done\ndata: {}\n\n"
-                        return
-        except Exception as e:
-            log(f"chat-with-agent error: {e}")
-            err = json.dumps({"error": str(e)})
-            yield f"event: error\ndata: {err}\n\n"
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+    return _sse_from_stream_generate(
+        full_prompt,
+        num_predict=300,
+        temperature=0.6,
+        prelude=("agent", json.dumps({"name": agent["name"], "role": agent["role"]})),
     )
 
 
@@ -1104,57 +1301,11 @@ def insights_ai():
         f"{context}\n\nYOUR BRIEFING:"
     )
 
-    def open_stream():
-        last_err = None
-        for url in OLLAMA_URLS:
-            try:
-                r = http.post(
-                    f"{url}/api/generate",
-                    json={
-                        "model": CHAT_MODEL,
-                        "prompt": prompt,
-                        "stream": True,
-                        "options": {"temperature": 0.4, "num_predict": 400},
-                    },
-                    stream=True,
-                    timeout=600,
-                )
-                r.raise_for_status()
-                return r
-            except Exception as e:
-                last_err = e
-                continue
-        raise last_err or RuntimeError("ollama unreachable")
-
-    def gen():
-        try:
-            yield f"event: context\ndata: {json.dumps({'lines': len(ctx_lines)})}\n\n"
-            with open_stream() as r:
-                for line in r.iter_lines(decode_unicode=True):
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except Exception:
-                        continue
-                    tok = obj.get("response", "")
-                    if tok:
-                        safe = tok.replace("\\", "\\\\").replace("\n", "\\n")
-                        yield f"event: token\ndata: {safe}\n\n"
-                    if obj.get("done"):
-                        yield "event: done\ndata: {}\n\n"
-                        return
-        except Exception as e:
-            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
-
-    return Response(
-        stream_with_context(gen()),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+    return _sse_from_stream_generate(
+        prompt,
+        num_predict=400,
+        temperature=0.4,
+        prelude=("context", json.dumps({"lines": len(ctx_lines)})),
     )
 
 
@@ -1223,57 +1374,136 @@ def insights_ai_ask():
         + f"\n\nQUESTION: {question}\n\nANSWER:"
     )
 
-    def open_stream():
-        last_err = None
+    return _sse_from_stream_generate(prompt, num_predict=450, temperature=0.4)
+
+
+@app.route("/api/models")
+def list_models():
+    """List models that ollama currently has loaded locally + the curated
+    catalogue of recommended models for this Xnode (with sizing warnings)."""
+    local = []
+    try:
+        r = open_ollama_post("/api/tags", {}, stream=False, timeout=10)
+        # /api/tags is GET-only — fall back to GET
+    except Exception:
+        pass
+    try:
         for url in OLLAMA_URLS:
             try:
-                r = http.post(
-                    f"{url}/api/generate",
-                    json={
-                        "model": CHAT_MODEL,
-                        "prompt": prompt,
-                        "stream": True,
-                        "options": {"temperature": 0.4, "num_predict": 450},
-                    },
-                    stream=True,
-                    timeout=600,
-                )
+                r = http.get(f"{url}/api/tags", timeout=10)
                 r.raise_for_status()
-                return r
-            except Exception as e:
-                last_err = e
+                data = r.json()
+                for m in data.get("models", []):
+                    local.append({
+                        "id": m.get("name") or m.get("model"),
+                        "size_gb": round((m.get("size", 0) or 0) / (1024**3), 2),
+                        "modified": m.get("modified_at") or "",
+                    })
+                break
+            except Exception:
                 continue
-        raise last_err or RuntimeError("ollama unreachable")
+    except Exception:
+        pass
+    return jsonify({
+        "active": get_active_model(),
+        "local": local,
+        "recommended": RECOMMENDED_MODELS,
+        "queue_depth": INFERENCE_QUEUE_DEPTH,
+        "last_token_rate": LAST_TOKEN_RATE,
+    })
+
+
+@app.route("/api/models/select", methods=["POST"])
+def select_model():
+    data = request.get_json(force=True, silent=True) or {}
+    model = (data.get("model") or "").strip()
+    if not model:
+        return jsonify({"error": "model required"}), 400
+    setting_set("active_model", model)
+    return jsonify({"active": model})
+
+
+@app.route("/api/models/pull", methods=["POST"])
+def pull_model():
+    """Stream progress while ollama pulls a model from the hub.
+
+    Wraps ollama's /api/pull which already streams progress JSON.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    model = (data.get("model") or "").strip()
+    if not model:
+        return jsonify({"error": "model required"}), 400
 
     def gen():
         try:
-            with open_stream() as r:
-                for line in r.iter_lines(decode_unicode=True):
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except Exception:
-                        continue
-                    tok = obj.get("response", "")
-                    if tok:
-                        safe = tok.replace("\\", "\\\\").replace("\n", "\\n")
-                        yield f"event: token\ndata: {safe}\n\n"
-                    if obj.get("done"):
-                        yield "event: done\ndata: {}\n\n"
-                        return
+            yield f"event: pull-start\ndata: {json.dumps({'model': model})}\n\n"
+            r = None
+            for url in OLLAMA_URLS:
+                try:
+                    r = http.post(f"{url}/api/pull", json={"name": model, "stream": True},
+                                  stream=True, timeout=3600)
+                    r.raise_for_status()
+                    break
+                except Exception:
+                    r = None
+                    continue
+            if r is None:
+                raise RuntimeError("ollama unreachable")
+            for line in r.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                # ollama emits progress objects: status, completed, total
+                yield f"event: pull-progress\ndata: {json.dumps(obj)}\n\n"
+                if obj.get("status", "").startswith("success") or obj.get("error"):
+                    break
+            yield f"event: pull-done\ndata: {json.dumps({'model': model})}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
     return Response(
         stream_with_context(gen()),
         mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive",
-        },
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                 "Connection": "keep-alive"},
     )
+
+
+@app.route("/api/models/warmup", methods=["POST"])
+def warmup_model():
+    """Send a tiny generate call to load the active model into RAM.
+
+    Useful right after a model swap so the first real request isn't
+    saddled with the multi-second cold-load. Holds the inference lock
+    so no other requests sneak in mid-load.
+    """
+    model = get_active_model()
+    queue_inc()
+    try:
+        with INFERENCE_LOCK:
+            t0 = time.monotonic()
+            try:
+                r = open_ollama_post(
+                    "/api/generate",
+                    {
+                        "model": model,
+                        "prompt": "hi",
+                        "stream": False,
+                        "think": False,
+                        "options": {"num_predict": 1, "temperature": 0.1},
+                    },
+                    stream=False,
+                    timeout=300,
+                )
+                elapsed = time.monotonic() - t0
+                return jsonify({"warm": True, "model": model, "seconds": round(elapsed, 2)})
+            except Exception as e:
+                return jsonify({"warm": False, "model": model, "error": str(e)}), 500
+    finally:
+        queue_dec()
 
 
 @app.route("/api/system/telemetry")
@@ -1355,6 +1585,12 @@ def system_telemetry():
     except Exception as e:
         out["disk"] = {"error": str(e)}
 
+    # Inference queue
+    out["inference"] = {
+        "queue_depth": INFERENCE_QUEUE_DEPTH,
+        "active_model": get_active_model(),
+        "last_token_rate": LAST_TOKEN_RATE,
+    }
     # Postgres connection count + DB size
     try:
         with db_connect() as conn, conn.cursor() as cur:
@@ -1438,6 +1674,9 @@ def main() -> int:
     log(f"  database: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'local'}")
     wait_for(check_db, "postgres")
     ensure_schema()
+    # Make sure the active model has a value before any worker reads it
+    if not setting_get("active_model"):
+        setting_set("active_model", DEFAULT_MODEL)
     seed_agents()
     seed_demo_project()
     log(f"listening on {BIND_HOST}:{PORT}")

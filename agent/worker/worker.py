@@ -41,10 +41,14 @@ DELEGATION_TARGETS = {
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://hermes-ollama.local:11434")
-CHAT_MODEL = os.environ.get("CHAT_MODEL", "hermes3:3b")
+FALLBACK_MODEL = os.environ.get("CHAT_MODEL", "hermes3:3b")
 POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "5"))
 NUM_PREDICT = int(os.environ.get("NUM_PREDICT", "400"))
 TEMPERATURE = float(os.environ.get("TEMPERATURE", "0.5"))
+
+# Strip thinking-model <think>...</think> blocks from model output so tasks
+# get clean answers regardless of which model is active.
+THINK_RE = re.compile(r"<think>[\s\S]*?</think>", re.IGNORECASE)
 
 # Derive agent name from the container hostname.
 # `hermes-agent-pm` → `pm`. If the env var AGENT_NAME is set, that
@@ -181,18 +185,42 @@ def claim_task(agent_id: int):
         return row  # (id, title, description) or None
 
 
+def get_active_model() -> str:
+    """Read the currently selected model from the settings table.
+
+    The dashboard writes to `settings.active_model` when the user picks a
+    new model in the UI. Workers read on every task claim so swaps take
+    effect immediately. Falls back to the env var if the table or row is
+    missing (first boot, etc).
+    """
+    try:
+        with db_connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT value FROM settings WHERE key = 'active_model'"
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                return row[0]
+    except Exception:
+        pass
+    return FALLBACK_MODEL
+
+
 def call_ollama(system_prompt: str, title: str, description: str) -> str:
     user_msg = f"TASK: {title}"
     if description:
         user_msg += f"\n\nDETAILS:\n{description}"
     full_prompt = f"{system_prompt}\n\n{user_msg}\n\nRESPONSE:"
+    model = get_active_model()
 
     r = requests.post(
         f"{OLLAMA_URL}/api/generate",
         json={
-            "model": CHAT_MODEL,
+            "model": model,
             "prompt": full_prompt,
             "stream": False,
+            # Disable thinking on models that support the flag (qwen3, deepseek-r1).
+            "think": False,
             "options": {
                 "temperature": TEMPERATURE,
                 "num_predict": NUM_PREDICT,
@@ -201,7 +229,10 @@ def call_ollama(system_prompt: str, title: str, description: str) -> str:
         timeout=600,
     )
     r.raise_for_status()
-    return r.json().get("response", "").strip()
+    resp = r.json().get("response", "").strip()
+    # Belt-and-braces strip for models that ignore the think flag
+    resp = THINK_RE.sub("", resp).strip()
+    return resp
 
 
 def complete_task(task_id: int, output: str) -> None:
@@ -312,15 +343,17 @@ def delegate_subtasks(parent_id: int, parent_title: str, parent_description: str
         r = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={
-                "model": CHAT_MODEL,
+                "model": get_active_model(),
                 "prompt": delegation_prompt,
                 "stream": False,
+                "think": False,
                 "options": {"temperature": 0.3, "num_predict": 500},
             },
             timeout=600,
         )
         r.raise_for_status()
         raw = r.json().get("response", "").strip()
+        raw = THINK_RE.sub("", raw).strip()
     except Exception as e:
         log(f"delegation LLM call failed: {e}")
         return 0
@@ -367,7 +400,7 @@ def main() -> int:
     log(f"agent worker starting (role: {AGENT_NAME})")
     log(f"  database: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_URL else 'local'}")
     log(f"  ollama:   {OLLAMA_URL}")
-    log(f"  model:    {CHAT_MODEL}")
+    log(f"  model:    (dynamic — reading from settings.active_model, fallback={FALLBACK_MODEL})")
 
     wait_for(check_db, "postgres")
     wait_for(check_ollama, "ollama")
