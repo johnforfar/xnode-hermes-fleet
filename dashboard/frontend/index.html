@@ -229,20 +229,46 @@
       border-radius: 14px;
     }
     .agent-card {
-      flex: 1 1 160px;
-      min-width: 150px;
+      flex: 1 1 180px;
+      min-width: 170px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.65rem 0.8rem;
+      padding: 0.65rem 0.8rem 0.7rem;
       cursor: pointer;
       transition: all 0.15s ease;
+      position: relative;
     }
     .agent-card:hover {
-      border-color: var(--accent-border);
-      transform: translateY(-1px);
-      box-shadow: 0 0 18px var(--accent-dim);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 0 24px var(--accent-dim), 0 0 0 1px var(--accent);
     }
+    .agent-card .chat-cta {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      width: 100%;
+      margin-top: 0.55rem;
+      padding: 0.45rem 0.6rem;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      border-radius: 7px;
+      color: var(--accent-bright);
+      font-size: 0.72rem;
+      font-weight: 600;
+      font-family: "JetBrains Mono", monospace;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    .agent-card:hover .chat-cta {
+      background: var(--accent);
+      color: #0a0a0a;
+      box-shadow: 0 0 14px var(--accent-dim);
+    }
+    .agent-card .chat-cta .chat-icon { font-size: 0.85rem; }
     .agent-card[data-role="ceo"]        { border-left: 3px solid var(--purple); }
     .agent-card[data-role="pm"]         { border-left: 3px solid var(--accent); }
     .agent-card[data-role="coder"]      { border-left: 3px solid var(--cyan); }
@@ -683,6 +709,27 @@
       border-top: 1px solid var(--border);
       font-size: 0.7rem; color: var(--fg-dim);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .org-node .org-chat-cta {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.4rem;
+      margin-top: 0.65rem;
+      padding: 0.45rem 0.6rem;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      border-radius: 7px;
+      color: var(--accent-bright);
+      font-size: 0.7rem;
+      font-weight: 600;
+      font-family: "JetBrains Mono", monospace;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+    .org-node:hover .org-chat-cta {
+      background: var(--accent);
+      color: #0a0a0a;
+      box-shadow: 0 0 14px var(--accent-dim);
     }
 
     /* === List view === */
@@ -1524,9 +1571,9 @@
       $('agents-strip').innerHTML = state.agents.map(a => {
         const st = effectiveStatus(a);
         const streaming = state.streamingAgents.has(a.name);
-        const liveLine = streaming
+        const currentLine = streaming
           ? '<span style="color:var(--accent-bright)" class="live-dots">replying live via hermes3:3b</span>'
-          : (a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">idle · click to chat</span>');
+          : (a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">no active task</span>');
         return `
         <div class="agent-card ${streaming ? 'streaming' : ''}" data-name="${escape(a.name)}" data-role="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
           <div class="agent-head">
@@ -1536,7 +1583,8 @@
             </div>
             <span class="agent-status ${escape(st)}">${escape(st)}</span>
           </div>
-          <div class="agent-current">${liveLine}</div>
+          <div class="agent-current">${currentLine}</div>
+          <div class="chat-cta"><span class="chat-icon">💬</span>Chat with ${escape(a.name)}</div>
         </div>
       `;}).join('');
       $$$('.agent-card', $('agents-strip')).forEach(card => {
@@ -1865,6 +1913,7 @@
                 <span><strong>${a.total_tasks ?? 0}</strong> total</span>
               </div>
               ${a.current_task_title ? `<div class="org-current">↳ ${escape(a.current_task_title)}</div>` : ''}
+              <div class="org-chat-cta">💬 Chat with ${escape(a.name)}</div>
             </div>
           `).join('')}
         </div>
