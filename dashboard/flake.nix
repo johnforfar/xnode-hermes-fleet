@@ -85,7 +85,10 @@
                 # Local connection via unix socket (peer auth as `hermes` user).
                 DATABASE_URL = "postgresql:///hermes?host=/run/postgresql";
                 # Cross-container ollama for direct chat-with-agent feature
-                OLLAMA_URL = "http://hermes-ollama:11434";
+                # Use .local suffix — matches the agent worker convention.
+                # Bare hostname `hermes-ollama` does not always resolve from
+                # this container; the .local FQDN is reliable via host dnsmasq.
+                OLLAMA_URL = "http://hermes-ollama.local:11434";
                 CHAT_MODEL = "hermes3:3b";
                 PORT = "5000";
                 BIND_HOST = "127.0.0.1";

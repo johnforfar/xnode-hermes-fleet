@@ -139,6 +139,128 @@
       gap: 1.25rem;
     }
 
+    /* === Tab bar === */
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.25rem;
+    }
+    .tab {
+      background: transparent;
+      color: var(--fg-dim);
+      border: none;
+      padding: 0.75rem 1.1rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s;
+      letter-spacing: -0.01em;
+    }
+    .tab:hover { color: var(--fg); }
+    .tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view { display: none; }
+    .view.active { display: flex; flex-direction: column; gap: 1.25rem; flex: 1; }
+
+    /* === Org chart === */
+    .orgchart {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2.5rem;
+      padding: 2.5rem 1rem;
+    }
+    .orgchart-tier {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      position: relative;
+    }
+    .orgchart-tier::before {
+      content: "";
+      position: absolute;
+      top: -1.6rem;
+      left: 50%;
+      width: 2px;
+      height: 1.5rem;
+      background: var(--border-strong);
+    }
+    .orgchart-tier:first-child::before { display: none; }
+    .org-node {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      min-width: 200px;
+      max-width: 240px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .org-node:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(79, 141, 255, 0.18);
+    }
+    .org-node.executive {
+      border-left: 4px solid var(--purple);
+      background: linear-gradient(180deg, rgba(167, 139, 250, 0.06), var(--bg-elev));
+    }
+    .org-node.lead {
+      border-left: 4px solid var(--accent);
+      background: linear-gradient(180deg, rgba(79, 141, 255, 0.06), var(--bg-elev));
+    }
+    .org-node.team[data-name="coder"]      { border-left: 4px solid var(--cyan); }
+    .org-node.team[data-name="researcher"] { border-left: 4px solid var(--orange); }
+    .org-node.team[data-name="writer"]     { border-left: 4px solid var(--pink); }
+    .org-node .org-name {
+      font-weight: 600;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+    .org-node .org-role {
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      margin-top: 0.2rem;
+    }
+    .org-node .org-status {
+      display: inline-block;
+      font-size: 0.65rem;
+      font-family: "JetBrains Mono", monospace;
+      padding: 0.12rem 0.5rem;
+      border-radius: 999px;
+      margin-top: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .org-node .org-status.idle    { background: var(--bg-elev-2); color: var(--fg-faint); }
+    .org-node .org-status.busy    { background: var(--orange-dim); color: var(--orange); }
+    .org-node .org-status.offline { background: rgba(255, 85, 114, 0.1); color: var(--error); }
+    .org-node .org-stats {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.65rem;
+      font-size: 0.7rem;
+      color: var(--fg-faint);
+      font-family: "JetBrains Mono", monospace;
+    }
+    .org-node .org-stats span strong { color: var(--fg); }
+    .org-node .org-current {
+      margin-top: 0.6rem;
+      padding-top: 0.6rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.72rem;
+      color: var(--fg-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     /* === Top bar with project selector + new task button === */
     .topbar {
       display: flex;
@@ -196,10 +318,11 @@
       transform: translateY(-1px);
       box-shadow: 0 0 18px var(--accent-dim);
     }
+    .agent-card[data-role="ceo"]        { border-left: 3px solid var(--purple); }
     .agent-card[data-role="pm"]         { border-left: 3px solid var(--accent); }
     .agent-card[data-role="coder"]      { border-left: 3px solid var(--cyan); }
     .agent-card[data-role="researcher"] { border-left: 3px solid var(--orange); }
-    .agent-card[data-role="writer"]     { border-left: 3px solid var(--purple); }
+    .agent-card[data-role="writer"]     { border-left: 3px solid var(--pink); }
     .agent-card .agent-head {
       display: flex;
       justify-content: space-between;
@@ -367,10 +490,11 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+    .card .role-pill.ceo { color: var(--purple); border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.10); }
     .card .role-pill.pm { color: var(--accent); border-color: var(--accent-border); background: var(--accent-dim); }
     .card .role-pill.coder { color: var(--cyan); border-color: rgba(94, 229, 224, 0.4); background: rgba(94, 229, 224, 0.10); }
     .card .role-pill.researcher { color: var(--orange); border-color: rgba(255, 161, 74, 0.4); background: var(--orange-dim); }
-    .card .role-pill.writer { color: var(--purple); border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.10); }
+    .card .role-pill.writer { color: var(--pink); border-color: rgba(244, 114, 182, 0.4); background: rgba(244, 114, 182, 0.10); }
     .card .timestamp {
       font-size: 0.7rem;
       color: var(--fg-faint);
@@ -535,6 +659,15 @@
       <button class="primary" id="new-task-btn">+ New task</button>
     </div>
 
+    <!-- Tab bar -->
+    <div class="tabs">
+      <button class="tab active" data-view="board">Kanban Board</button>
+      <button class="tab" data-view="orgchart">Org Chart</button>
+    </div>
+
+    <!-- ─── Board view ─── -->
+    <div class="view active" id="view-board">
+
     <!-- Agent strip -->
     <div class="agents-strip" id="agents-strip"></div>
 
@@ -576,6 +709,16 @@
         <div class="cards" id="col-done"></div>
       </div>
     </div>
+    </div><!-- /view-board -->
+
+    <!-- ─── Org Chart view ─── -->
+    <div class="view" id="view-orgchart">
+      <div style="text-align:center; color:var(--fg-dim); font-size:0.88rem; padding:0.5rem 1rem 0;">
+        Click any agent to chat with them as a team member.
+        Each tier reports up to the level above. CEO sets strategy → PM coordinates → specialists execute.
+      </div>
+      <div class="orgchart" id="orgchart"></div>
+    </div>
   </main>
 
   <!-- Task detail modal -->
@@ -587,6 +730,7 @@
       <div><strong style="font-size:0.85rem; color:var(--fg-dim); display:block; margin-bottom:0.5rem;">AGENT OUTPUT</strong></div>
       <div class="output" id="modal-output">no output yet</div>
       <div class="modal-actions">
+        <button id="modal-chat-agent" class="primary">💬 Chat with this agent</button>
         <button id="modal-close">Close</button>
       </div>
     </div>
@@ -629,9 +773,10 @@
       <div class="form-group">
         <label for="nt-role">Assign to</label>
         <select id="nt-role">
-          <option value="pm">pm — project manager</option>
+          <option value="ceo">ceo — chief executive officer</option>
+          <option value="pm" selected>pm — project manager</option>
           <option value="coder">coder — software engineer</option>
-          <option value="researcher">researcher</option>
+          <option value="researcher">researcher — hardware researcher</option>
           <option value="writer">writer — technical writer</option>
         </select>
       </div>
@@ -663,7 +808,9 @@
     const $$ = (sel) => document.querySelector(sel);
     const escape = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-    const ROLE_LABELS = { pm: 'PM', coder: 'CODER', researcher: 'RESEARCHER', writer: 'WRITER' };
+    const ROLE_LABELS = { ceo: 'CEO', pm: 'PM', coder: 'CODER', researcher: 'RESEARCHER', writer: 'WRITER' };
+
+    let currentTaskAgent = null; // role assigned to the task open in the modal
 
     let state = {
       currentProjectId: null,
@@ -697,6 +844,10 @@
     async function loadAgents() {
       state.agents = await api('/agents');
       renderAgents();
+      // Re-render org chart if it's the active view
+      if (document.querySelector('.tab.active')?.dataset.view === 'orgchart') {
+        renderOrgChart();
+      }
     }
 
     async function loadTasks() {
@@ -782,6 +933,8 @@
         const t = await api(`/tasks/${id}`);
         $('modal-title').textContent = t.title;
         const role = (t.assigned_role || '').toLowerCase();
+        currentTaskAgent = role;
+        $('modal-chat-agent').textContent = `💬 Chat with @${role}`;
         const status = t.status || 'backlog';
         $('modal-meta').textContent = `#${t.id} · ${role} · ${status}` +
           (t.assigned_agent_name ? ` · @${t.assigned_agent_name}` : '');
@@ -807,6 +960,54 @@
     $('task-modal').addEventListener('click', e => {
       if (e.target.id === 'task-modal') $('task-modal').classList.remove('open');
     });
+    $('modal-chat-agent').addEventListener('click', () => {
+      if (!currentTaskAgent) return;
+      $('task-modal').classList.remove('open');
+      openAgentChat(currentTaskAgent);
+    });
+
+    // ---- Tab switching ----
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+        const view = btn.dataset.view;
+        document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `view-${view}`));
+        if (view === 'orgchart') renderOrgChart();
+      });
+    });
+
+    // ---- Org chart ----
+    function renderOrgChart() {
+      const root = $('orgchart');
+      const tiers = { executive: [], lead: [], team: [] };
+      for (const a of state.agents) {
+        const t = a.tier || 'team';
+        if (tiers[t]) tiers[t].push(a);
+      }
+      const tierOrder = ['executive', 'lead', 'team'];
+      root.innerHTML = tierOrder
+        .filter(t => tiers[t].length)
+        .map(t => `
+          <div class="orgchart-tier">
+            ${tiers[t].map(a => `
+              <div class="org-node ${escape(t)}" data-name="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
+                <div class="org-name">${escape(a.name)}</div>
+                <div class="org-role">${escape(a.role)}</div>
+                <span class="org-status ${escape(a.status || 'offline')}">${escape(a.status || 'offline')}</span>
+                <div class="org-stats">
+                  <span><strong>${a.open_tasks ?? 0}</strong> open</span>
+                  <span><strong>${a.done_tasks ?? 0}</strong> done</span>
+                  <span><strong>${a.total_tasks ?? 0}</strong> total</span>
+                </div>
+                ${a.current_task_title ? `<div class="org-current">↳ ${escape(a.current_task_title)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `).join('');
+      root.querySelectorAll('.org-node').forEach(node => {
+        node.addEventListener('click', () => openAgentChat(node.dataset.name));
+      });
+    }
 
     $('new-task-btn').addEventListener('click', () => $('new-task-modal').classList.add('open'));
     $('nt-cancel').addEventListener('click', () => $('new-task-modal').classList.remove('open'));
