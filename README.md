@@ -5,7 +5,7 @@ Inspired by paperclip's "agents pick up cards" idea but rebuilt from scratch
 in ~1500 lines of Python + nix + vanilla JS, with no upstream dependency
 on either paperclip or hermes-agent (yet — see "v2 upgrade path" below).
 
-Live demo: **https://agents.build.openmesh.cloud**
+Live demo: **https://hermes.build.openmesh.cloud**
 
 ## What it does
 
@@ -38,7 +38,7 @@ sovereign Xnode.
                   (kanban UI + REST API)
                               │
                               ▼ public TLS
-              agents.build.openmesh.cloud
+              hermes.build.openmesh.cloud
 ```
 
 Each box is a separate **nixos-container** managed by `om`. They reach
