@@ -3,12 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>hermes-fleet — agent board</title>
-  <meta name="description" content="Multi-agent task board for the xnode-hermes-fleet. Self-hosted on a sovereign Openmesh Xnode.">
+  <title>hermes-fleet — multi-agent ops board on Openmesh Xnode</title>
+  <meta name="description" content="A live multi-agent kanban running entirely on a single Openmesh Xnode. Postgres + ollama + 5 hermes3 agents in 6 NixOS containers, no cloud, no compromises.">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    /* OwnStartup-inspired blue palette: deep navy with electric blue/cyan accents */
     :root {
       --bg-grad: linear-gradient(180deg, #0d1626 0%, #060b14 54%, #04080f 100%);
       --bg: #04080f;
@@ -18,21 +17,22 @@
       --fg: #f1f5fb;
       --fg-dim: #8b9bb6;
       --fg-faint: #54668a;
-      --accent: #4f8dff;          /* primary electric blue */
+      --accent: #4f8dff;
       --accent-bright: #6ba7ff;
       --accent-dim: rgba(79, 141, 255, 0.14);
       --accent-border: rgba(79, 141, 255, 0.4);
       --cyan: #5ee5e0;
-      --orange: #ffa14a;          /* in-progress / review accent */
+      --orange: #ffa14a;
       --orange-dim: rgba(255, 161, 74, 0.14);
-      --green: #4ade80;           /* done */
+      --green: #4ade80;
       --green-dim: rgba(74, 222, 128, 0.14);
-      --purple: #a78bfa;          /* researcher/writer pills */
+      --purple: #a78bfa;
       --pink: #f472b6;
       --border: #1f2c44;
       --border-strong: #2d3e5e;
       --code-bg: #060b14;
       --error: #ff5572;
+      --warn: #fbbf24;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -48,11 +48,11 @@
       overflow-x: hidden;
     }
 
-    /* === Aurora background — blue/purple drifting blobs === */
+    /* === Aurora background === */
     .aurora { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; background: var(--bg-grad); }
     .aurora::before, .aurora::after, .aurora .layer {
       content: ""; position: absolute; inset: -25%;
-      filter: blur(90px); opacity: 0.45; mix-blend-mode: screen; will-change: transform;
+      filter: blur(110px); opacity: 0.45; mix-blend-mode: screen; will-change: transform;
     }
     .aurora::before {
       background: radial-gradient(45% 35% at 30% 35%, #5b83f0 0%, transparent 60%),
@@ -69,21 +69,9 @@
                   radial-gradient(25% 20% at 15% 30%, #5ee5e0 0%, transparent 70%);
       animation: drift3 35s ease-in-out infinite alternate; opacity: 0.4;
     }
-    @keyframes drift1 {
-      0% { transform: translate(0, 0) rotate(0deg) scale(1); }
-      50% { transform: translate(-12%, 8%) rotate(40deg) scale(1.18); }
-      100% { transform: translate(10%, -6%) rotate(-30deg) scale(0.92); }
-    }
-    @keyframes drift2 {
-      0% { transform: translate(0, 0) rotate(0deg) scale(1); }
-      50% { transform: translate(15%, -10%) rotate(-50deg) scale(1.25); }
-      100% { transform: translate(-8%, 12%) rotate(35deg) scale(0.88); }
-    }
-    @keyframes drift3 {
-      0% { transform: translate(0, 0) rotate(0deg) scale(1.1); }
-      50% { transform: translate(8%, 15%) rotate(60deg) scale(0.85); }
-      100% { transform: translate(-15%, -8%) rotate(-25deg) scale(1.2); }
-    }
+    @keyframes drift1 { 0%{transform:translate(0,0) rotate(0) scale(1);} 50%{transform:translate(-12%,8%) rotate(40deg) scale(1.18);} 100%{transform:translate(10%,-6%) rotate(-30deg) scale(0.92);} }
+    @keyframes drift2 { 0%{transform:translate(0,0) rotate(0) scale(1);} 50%{transform:translate(15%,-10%) rotate(-50deg) scale(1.25);} 100%{transform:translate(-8%,12%) rotate(35deg) scale(0.88);} }
+    @keyframes drift3 { 0%{transform:translate(0,0) rotate(0) scale(1.1);} 50%{transform:translate(8%,15%) rotate(60deg) scale(0.85);} 100%{transform:translate(-15%,-8%) rotate(-25deg) scale(1.2);} }
     .aurora-vignette {
       position: fixed; inset: 0; pointer-events: none; z-index: 2;
       background: radial-gradient(ellipse at center, transparent 40%, var(--bg) 100%);
@@ -94,222 +82,152 @@
     header, main, footer { position: relative; z-index: 3; }
 
     header {
-      padding: 1.1rem 1.75rem;
+      padding: 1rem 1.75rem;
       border-bottom: 1px solid var(--border);
-      background: rgba(12, 12, 12, 0.75);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      background: rgba(8, 12, 22, 0.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 0.75rem;
+      gap: 1rem;
       position: sticky;
       top: 0;
     }
-    header h1 {
-      font-size: 1.05rem;
-      margin: 0;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      letter-spacing: -0.02em;
+    .brand { display: flex; align-items: center; gap: 1rem; }
+    .brand h1 {
+      font-size: 1.1rem; margin: 0; font-weight: 700;
+      display: flex; align-items: center; gap: 0.55rem;
+      letter-spacing: -0.025em;
     }
-    header h1 .dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--accent); box-shadow: 0 0 12px var(--accent);
+    .brand h1 .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 14px var(--accent);
       animation: pulse 2.4s ease-in-out infinite;
     }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
-    header h1 .accent { color: var(--accent); }
-    header .meta {
-      font-size: 0.78rem; color: var(--fg-dim);
+    .brand h1 .accent { color: var(--accent); }
+    .brand .tagline {
+      font-size: 0.74rem;
+      color: var(--fg-dim);
       font-family: "JetBrains Mono", ui-monospace, monospace;
+      border-left: 1px solid var(--border);
+      padding-left: 1rem;
+      letter-spacing: 0;
     }
+    .brand .tagline strong { color: var(--cyan); font-weight: 500; }
+
+    .infra-strip {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+    }
+    .infra-pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.35rem 0.7rem;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--fg-dim);
+    }
+    .infra-pill .led {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 8px var(--green);
+    }
+    .infra-pill .led.off { background: var(--fg-faint); box-shadow: none; }
+    .infra-pill .led.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
 
     main {
       flex: 1;
       display: flex;
       flex-direction: column;
-      max-width: 1400px;
+      max-width: 1500px;
       width: 100%;
       margin: 0 auto;
-      padding: 1.75rem 1.5rem 1.5rem;
-      gap: 1.25rem;
+      padding: 1.5rem 1.5rem 1.5rem;
+      gap: 1.1rem;
     }
 
     /* === Tab bar === */
     .tabs {
       display: flex;
-      gap: 0.25rem;
+      gap: 0.1rem;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 0.25rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
     }
     .tab {
       background: transparent;
       color: var(--fg-dim);
       border: none;
-      padding: 0.75rem 1.1rem;
+      padding: 0.85rem 1.15rem;
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-weight: 500;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       transition: color 0.15s;
       letter-spacing: -0.01em;
+      white-space: nowrap;
+      display: flex; align-items: center; gap: 0.5rem;
     }
-    .tab:hover { color: var(--fg); }
+    .tab:hover { color: var(--fg); background: rgba(255,255,255,0.02); }
     .tab.active {
       color: var(--accent);
       border-bottom-color: var(--accent);
+      background: var(--accent-dim);
     }
+    .tab .tab-icon { font-size: 0.95rem; opacity: 0.85; }
     .view { display: none; }
-    .view.active { display: flex; flex-direction: column; gap: 1.25rem; flex: 1; }
+    .view.active { display: flex; flex-direction: column; gap: 1.1rem; flex: 1; }
 
-    /* === Org chart === */
-    .orgchart {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2.5rem;
-      padding: 2.5rem 1rem;
-    }
-    .orgchart-tier {
-      display: flex;
-      justify-content: center;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-      position: relative;
-    }
-    .orgchart-tier::before {
-      content: "";
-      position: absolute;
-      top: -1.6rem;
-      left: 50%;
-      width: 2px;
-      height: 1.5rem;
-      background: var(--border-strong);
-    }
-    .orgchart-tier:first-child::before { display: none; }
-    .org-node {
-      background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1rem 1.25rem;
-      min-width: 200px;
-      max-width: 240px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      position: relative;
-    }
-    .org-node:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(79, 141, 255, 0.18);
-    }
-    .org-node.executive {
-      border-left: 4px solid var(--purple);
-      background: linear-gradient(180deg, rgba(167, 139, 250, 0.06), var(--bg-elev));
-    }
-    .org-node.lead {
-      border-left: 4px solid var(--accent);
-      background: linear-gradient(180deg, rgba(79, 141, 255, 0.06), var(--bg-elev));
-    }
-    .org-node.team[data-name="coder"]      { border-left: 4px solid var(--cyan); }
-    .org-node.team[data-name="researcher"] { border-left: 4px solid var(--orange); }
-    .org-node.team[data-name="writer"]     { border-left: 4px solid var(--pink); }
-    .org-node .org-name {
-      font-weight: 600;
-      font-size: 1.05rem;
-      letter-spacing: -0.01em;
-    }
-    .org-node .org-role {
-      font-size: 0.78rem;
-      color: var(--fg-dim);
-      margin-top: 0.2rem;
-    }
-    .org-node .org-status {
-      display: inline-block;
-      font-size: 0.65rem;
-      font-family: "JetBrains Mono", monospace;
-      padding: 0.12rem 0.5rem;
-      border-radius: 999px;
-      margin-top: 0.55rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .org-node .org-status.idle    { background: var(--bg-elev-2); color: var(--fg-faint); }
-    .org-node .org-status.busy    { background: var(--orange-dim); color: var(--orange); }
-    .org-node .org-status.offline { background: rgba(255, 85, 114, 0.1); color: var(--error); }
-    .org-node .org-stats {
-      display: flex;
-      gap: 0.75rem;
-      margin-top: 0.65rem;
-      font-size: 0.7rem;
-      color: var(--fg-faint);
-      font-family: "JetBrains Mono", monospace;
-    }
-    .org-node .org-stats span strong { color: var(--fg); }
-    .org-node .org-current {
-      margin-top: 0.6rem;
-      padding-top: 0.6rem;
-      border-top: 1px solid var(--border);
-      font-size: 0.72rem;
-      color: var(--fg-dim);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    /* === Top bar with project selector + new task button === */
+    /* === Topbar (shared across views that need it) === */
     .topbar {
-      display: flex;
-      gap: 0.75rem;
-      align-items: center;
-      flex-wrap: wrap;
+      display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
     }
     .topbar h2 {
-      margin: 0;
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      flex: 1;
+      margin: 0; font-size: 1.5rem; font-weight: 700;
+      letter-spacing: -0.025em; flex: 1;
     }
-    .topbar select, .topbar button {
+    .topbar .topbar-meta {
+      font-size: 0.8rem; color: var(--fg-dim);
+      font-family: "JetBrains Mono", monospace;
+    }
+    .topbar select, .topbar button, .topbar input {
       background: var(--bg-elev);
       color: var(--fg);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.6rem 0.9rem;
+      padding: 0.55rem 0.85rem;
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       cursor: pointer;
     }
     .topbar button.primary {
-      background: var(--accent);
-      color: #0a0a0a;
-      border: none;
-      font-weight: 600;
+      background: var(--accent); color: #0a0a0a; border: none; font-weight: 600;
     }
     .topbar button.primary:hover { box-shadow: 0 0 18px var(--accent-dim); }
 
     /* === Agent strip === */
     .agents-strip {
       display: flex;
-      gap: 0.75rem;
+      gap: 0.6rem;
       flex-wrap: wrap;
-      padding: 0.85rem;
+      padding: 0.7rem;
       background: var(--bg-elev);
       border: 1px solid var(--border);
       border-radius: 14px;
     }
     .agent-card {
-      flex: 1 1 200px;
-      min-width: 180px;
+      flex: 1 1 160px;
+      min-width: 150px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.75rem 0.9rem;
+      padding: 0.65rem 0.8rem;
       cursor: pointer;
       transition: all 0.15s ease;
     }
@@ -324,54 +242,47 @@
     .agent-card[data-role="researcher"] { border-left: 3px solid var(--orange); }
     .agent-card[data-role="writer"]     { border-left: 3px solid var(--pink); }
     .agent-card .agent-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.3rem;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.25rem;
     }
-    .agent-card .agent-name {
-      font-weight: 600;
-      font-size: 0.95rem;
-      color: var(--fg);
-    }
-    .agent-card .agent-role {
-      font-size: 0.74rem;
-      color: var(--fg-dim);
-      margin-top: 0.1rem;
-    }
+    .agent-card .agent-name { font-weight: 600; font-size: 0.92rem; }
+    .agent-card .agent-role { font-size: 0.72rem; color: var(--fg-dim); margin-top: 0.05rem; }
     .agent-card .agent-status {
-      font-size: 0.7rem;
-      padding: 0.15rem 0.5rem;
+      font-size: 0.65rem;
+      padding: 0.13rem 0.45rem;
       border-radius: 999px;
       font-family: "JetBrains Mono", monospace;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .agent-card .agent-status.idle {
-      background: var(--bg-elev-2);
-      color: var(--fg-faint);
-      border: 1px solid var(--border);
+    .agent-card .agent-status.idle { background: var(--bg-elev-2); color: var(--fg-faint); border: 1px solid var(--border); }
+    .agent-card .agent-status.busy { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(255,161,74,0.4); }
+    .agent-card .agent-status.offline { background: rgba(255,77,77,0.1); color: var(--error); border: 1px solid var(--error); }
+    .agent-card .agent-status.thinking, .agent-card .agent-status.streaming {
+      background: var(--accent-dim); color: var(--accent-bright);
+      border: 1px solid var(--accent);
     }
-    .agent-card .agent-status.busy {
-      background: var(--orange-dim);
-      color: var(--orange);
-      border: 1px solid rgba(255, 95, 5, 0.4);
+    .agent-card.streaming { animation: cardPulse 1.5s ease-in-out infinite; box-shadow: 0 0 24px var(--accent-dim); }
+    @keyframes cardPulse {
+      0%, 100% { box-shadow: 0 0 18px var(--accent-dim); }
+      50% { box-shadow: 0 0 28px rgba(79,141,255,0.4); }
     }
-    .agent-card .agent-status.offline {
-      background: rgba(255, 77, 77, 0.1);
-      color: var(--error);
-      border: 1px solid var(--error);
-    }
-    .agent-card .agent-current {
-      font-size: 0.78rem;
-      color: var(--fg-dim);
-      margin-top: 0.4rem;
+    .live-dots::after {
+      content: '...';
+      display: inline-block;
+      animation: dots 1.4s steps(4) infinite;
+      width: 1em;
+      text-align: left;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      vertical-align: bottom;
+    }
+    @keyframes dots { 0% {content:'';} 25%{content:'.';} 50%{content:'..';} 75%{content:'...';} }
+    .agent-card .agent-current {
+      font-size: 0.72rem; color: var(--fg-dim); margin-top: 0.35rem;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
-    /* === Kanban board: 5 columns (backlog | todo | in_progress | review | done) === */
+    /* === Kanban board === */
     .board {
       display: grid;
       grid-template-columns: repeat(5, minmax(220px, 1fr));
@@ -384,56 +295,43 @@
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 0.85rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
+      display: flex; flex-direction: column; gap: 0.75rem;
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      min-width: 0;  /* allow shrink */
+      min-width: 0;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .column.drop-target {
+      background: var(--accent-dim);
+      border-color: var(--accent);
     }
     .column-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: flex; justify-content: space-between; align-items: center;
       padding: 0.25rem 0.5rem 0.55rem;
       border-bottom: 1px solid var(--border);
     }
     .column-head .title {
-      font-weight: 600;
-      font-size: 0.92rem;
+      font-weight: 600; font-size: 0.92rem;
       letter-spacing: -0.01em;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      display: flex; align-items: center; gap: 0.5rem;
     }
-    .column-head .title .dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      display: inline-block;
-    }
+    .column-head .title .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .column[data-col="backlog"] .dot     { background: var(--fg-faint); }
     .column[data-col="todo"] .dot        { background: var(--accent); }
     .column[data-col="in_progress"] .dot { background: var(--accent-bright); box-shadow: 0 0 8px var(--accent-bright); }
     .column[data-col="review"] .dot      { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
     .column[data-col="done"] .dot        { background: var(--green); box-shadow: 0 0 8px var(--green); }
     .column-head .count {
-      font-size: 0.76rem;
-      color: var(--fg-dim);
+      font-size: 0.76rem; color: var(--fg-dim);
       font-family: "JetBrains Mono", monospace;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      padding: 0.15rem 0.55rem;
-      border-radius: 999px;
-      min-width: 1.5rem;
-      text-align: center;
+      background: var(--code-bg); border: 1px solid var(--border);
+      padding: 0.15rem 0.55rem; border-radius: 999px;
+      min-width: 1.5rem; text-align: center;
     }
 
     .cards {
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-      min-height: 100px;
-      overflow-y: auto;
-      max-height: 65vh;
+      display: flex; flex-direction: column; gap: 0.6rem;
+      min-height: 100px; overflow-y: auto; max-height: 70vh;
     }
 
     .card {
@@ -441,181 +339,668 @@
       border: 1px solid var(--border);
       border-left: 3px solid var(--accent);
       border-radius: 10px;
-      padding: 0.85rem 1rem;
-      cursor: pointer;
+      padding: 0.75rem 0.9rem;
+      cursor: grab;
       transition: all 0.15s ease;
       position: relative;
+      user-select: none;
     }
-    /* Per-status left ribbon — matches OwnStartup */
+    .card:active { cursor: grabbing; }
     .card[data-status="backlog"]     { border-left-color: var(--fg-faint); }
     .card[data-status="todo"]        { border-left-color: var(--accent); }
     .card[data-status="in_progress"] { border-left-color: var(--accent-bright); }
     .card[data-status="review"]      { border-left-color: var(--orange); }
     .card[data-status="done"]        { border-left-color: var(--green); }
     .card[data-status="failed"]      { border-left-color: var(--error); }
+    .card.incomplete {
+      border: 1px solid rgba(255, 85, 114, 0.55);
+      border-left-width: 3px;
+      box-shadow: 0 0 0 1px rgba(255, 85, 114, 0.2);
+    }
+    .card.dragging { opacity: 0.4; transform: scale(0.97); }
     .card:hover {
       border-color: var(--accent-border);
       transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.3);
     }
     .card .title {
-      font-weight: 500;
-      font-size: 0.92rem;
-      line-height: 1.35;
-      margin-bottom: 0.4rem;
+      font-weight: 500; font-size: 0.9rem; line-height: 1.35;
+      margin-bottom: 0.35rem;
     }
     .card .description {
-      font-size: 0.78rem;
-      color: var(--fg-dim);
-      line-height: 1.4;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      font-size: 0.74rem; color: var(--fg-dim); line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
     }
     .card .meta {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-      margin-top: 0.6rem;
-      flex-wrap: wrap;
+      display: flex; gap: 0.4rem; align-items: center;
+      margin-top: 0.55rem; flex-wrap: wrap;
     }
     .card .role-pill {
-      font-size: 0.68rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-      background: var(--code-bg);
-      border: 1px solid var(--border);
-      color: var(--fg-dim);
+      font-size: 0.62rem; padding: 0.13rem 0.45rem;
+      border-radius: 999px; background: var(--code-bg);
+      border: 1px solid var(--border); color: var(--fg-dim);
       font-family: "JetBrains Mono", monospace;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      text-transform: uppercase; letter-spacing: 0.04em;
     }
-    .card .role-pill.ceo { color: var(--purple); border-color: rgba(167, 139, 250, 0.4); background: rgba(167, 139, 250, 0.10); }
+    .card .role-pill.ceo { color: var(--purple); border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.10); }
     .card .role-pill.pm { color: var(--accent); border-color: var(--accent-border); background: var(--accent-dim); }
-    .card .role-pill.coder { color: var(--cyan); border-color: rgba(94, 229, 224, 0.4); background: rgba(94, 229, 224, 0.10); }
-    .card .role-pill.researcher { color: var(--orange); border-color: rgba(255, 161, 74, 0.4); background: var(--orange-dim); }
-    .card .role-pill.writer { color: var(--pink); border-color: rgba(244, 114, 182, 0.4); background: rgba(244, 114, 182, 0.10); }
-    .card .timestamp {
-      font-size: 0.7rem;
-      color: var(--fg-faint);
-      font-family: "JetBrains Mono", monospace;
-      margin-left: auto;
+    .card .role-pill.coder { color: var(--cyan); border-color: rgba(94,229,224,0.4); background: rgba(94,229,224,0.10); }
+    .card .role-pill.researcher { color: var(--orange); border-color: rgba(255,161,74,0.4); background: var(--orange-dim); }
+    .card .role-pill.writer { color: var(--pink); border-color: rgba(244,114,182,0.4); background: rgba(244,114,182,0.10); }
+    .card .due-pill {
+      font-size: 0.62rem; padding: 0.13rem 0.45rem;
+      border-radius: 999px; font-family: "JetBrains Mono", monospace;
+      background: rgba(255,255,255,0.04); color: var(--fg-dim);
+      border: 1px solid var(--border);
     }
+    .card .due-pill.overdue { color: var(--error); border-color: rgba(255,85,114,0.5); background: rgba(255,85,114,0.08); }
+    .card .due-pill.soon    { color: var(--warn); border-color: rgba(251,191,36,0.5); background: rgba(251,191,36,0.08); }
+    .card .due-pill.missing { color: var(--error); border-color: rgba(255,85,114,0.5); background: rgba(255,85,114,0.08); }
+    .card .assignees-row {
+      display: flex; gap: 0.2rem; margin-left: auto;
+    }
+    .card .avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--bg-elev-2); border: 1px solid var(--border);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.62rem; font-weight: 700; color: var(--fg);
+      margin-left: -6px;
+    }
+    .card .avatar:first-child { margin-left: 0; }
+    .card .avatar.ceo        { background: rgba(167,139,250,0.25); border-color: var(--purple); color: var(--purple); }
+    .card .avatar.pm         { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-bright); }
+    .card .avatar.coder      { background: rgba(94,229,224,0.18); border-color: var(--cyan); color: var(--cyan); }
+    .card .avatar.researcher { background: var(--orange-dim); border-color: var(--orange); color: var(--orange); }
+    .card .avatar.writer     { background: rgba(244,114,182,0.18); border-color: var(--pink); color: var(--pink); }
+    .card .avatar.empty      { color: var(--error); border-color: var(--error); background: rgba(255,85,114,0.1); }
 
     .empty-state {
-      text-align: center;
-      padding: 1.5rem 0.5rem;
-      color: var(--fg-faint);
-      font-size: 0.85rem;
+      text-align: center; padding: 1.5rem 0.5rem;
+      color: var(--fg-faint); font-size: 0.85rem;
     }
 
-    /* === Task detail modal === */
+    /* === Modals === */
     .modal-backdrop {
       position: fixed; inset: 0;
       background: rgba(0, 0, 0, 0.7);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      padding: 1.5rem;
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 1.5rem;
     }
     .modal-backdrop.open { display: flex; }
     .modal {
       background: var(--bg-elev);
       border: 1px solid var(--border-strong);
       border-radius: 16px;
-      max-width: 760px;
-      width: 100%;
-      max-height: 88vh;
+      max-width: 760px; width: 100%; max-height: 88vh;
       overflow-y: auto;
-      padding: 1.75rem 2rem;
+      padding: 1.6rem 1.85rem;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
     }
     .modal h3 {
-      margin: 0 0 0.4rem;
-      font-size: 1.35rem;
+      margin: 0 0 0.4rem; font-size: 1.3rem;
       letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 0.6rem;
     }
+    .modal h3 .icon-btn {
+      background: var(--bg-elev-2); border: 1px solid var(--border);
+      width: 34px; height: 34px; border-radius: 8px;
+      display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 0.95rem; color: var(--fg-dim);
+      padding: 0;
+    }
+    .modal h3 .icon-btn:hover { color: var(--accent); border-color: var(--accent); }
     .modal .modal-meta {
-      font-size: 0.78rem;
-      color: var(--fg-dim);
+      font-size: 0.76rem; color: var(--fg-dim);
       margin-bottom: 1rem;
       font-family: "JetBrains Mono", monospace;
     }
     .modal .modal-description {
-      color: var(--fg-dim);
-      line-height: 1.55;
-      margin-bottom: 1.25rem;
-      padding-bottom: 1.25rem;
-      border-bottom: 1px solid var(--border);
+      color: var(--fg-dim); line-height: 1.55;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem; border-bottom: 1px solid var(--border);
+    }
+    .modal-section {
+      margin-bottom: 1rem;
+    }
+    .modal-section .section-label {
+      font-size: 0.72rem; color: var(--fg-faint);
+      text-transform: uppercase; letter-spacing: 0.08em;
+      font-weight: 600; margin-bottom: 0.5rem;
+      font-family: "JetBrains Mono", monospace;
     }
     .modal .output {
-      background: var(--code-bg);
-      border: 1px solid var(--border);
+      background: var(--code-bg); border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 1rem 1.2rem;
-      white-space: pre-wrap;
-      font-family: inherit;
-      line-height: 1.55;
-      font-size: 0.92rem;
+      padding: 0.9rem 1.05rem;
+      white-space: pre-wrap; font-family: inherit;
+      line-height: 1.55; font-size: 0.88rem;
+      max-height: 240px; overflow-y: auto;
     }
-    .modal .output.empty {
-      color: var(--fg-faint);
-      font-style: italic;
-    }
+    .modal .output.empty { color: var(--fg-faint); font-style: italic; }
     .modal .modal-actions {
-      display: flex;
-      gap: 0.6rem;
-      margin-top: 1.25rem;
-      justify-content: flex-end;
+      display: flex; gap: 0.6rem; margin-top: 1rem;
+      justify-content: flex-end; flex-wrap: wrap;
     }
     .modal button {
-      background: var(--bg-elev-2);
-      color: var(--fg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.55rem 0.9rem;
-      font-family: inherit;
-      font-size: 0.85rem;
-      cursor: pointer;
+      background: var(--bg-elev-2); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.55rem 0.9rem; font-family: inherit;
+      font-size: 0.83rem; cursor: pointer;
     }
     .modal button.primary {
-      background: var(--accent);
-      color: #0a0a0a;
-      border: none;
-      font-weight: 600;
+      background: var(--accent); color: #0a0a0a;
+      border: none; font-weight: 600;
+    }
+    .modal button.danger {
+      background: rgba(255,85,114,0.15); color: var(--error);
+      border: 1px solid rgba(255,85,114,0.4);
     }
 
-    /* === New task form (also a modal) === */
-    .form-group { margin-bottom: 1rem; }
+    /* Status quick-move buttons */
+    .status-buttons {
+      display: flex; gap: 0.4rem; flex-wrap: wrap;
+    }
+    .status-btn {
+      background: var(--bg-elev-2); color: var(--fg-dim);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.5rem 0.85rem; cursor: pointer;
+      font-family: inherit; font-size: 0.78rem;
+      display: inline-flex; align-items: center; gap: 0.45rem;
+    }
+    .status-btn .led { width: 7px; height: 7px; border-radius: 50%; }
+    .status-btn[data-status="backlog"]     .led { background: var(--fg-faint); }
+    .status-btn[data-status="todo"]        .led { background: var(--accent); }
+    .status-btn[data-status="in_progress"] .led { background: var(--accent-bright); }
+    .status-btn[data-status="review"]      .led { background: var(--orange); }
+    .status-btn[data-status="done"]        .led { background: var(--green); }
+    .status-btn.active {
+      background: var(--accent-dim); color: var(--fg);
+      border-color: var(--accent);
+    }
+    .status-btn:hover { border-color: var(--accent); color: var(--fg); }
+
+    /* Assignee chips in modal */
+    .assignee-chips {
+      display: flex; flex-wrap: wrap; gap: 0.4rem;
+    }
+    .assignee-chip {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.45rem 0.75rem;
+      background: var(--bg-elev-2); border: 1px solid var(--border);
+      border-radius: 999px; cursor: pointer;
+      font-size: 0.8rem; transition: all 0.15s;
+      user-select: none;
+    }
+    .assignee-chip .mini-avatar {
+      width: 18px; height: 18px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.6rem; font-weight: 700;
+    }
+    .assignee-chip[data-role="ceo"]        .mini-avatar { background: rgba(167,139,250,0.25); color: var(--purple); border: 1px solid var(--purple); }
+    .assignee-chip[data-role="pm"]         .mini-avatar { background: var(--accent-dim); color: var(--accent-bright); border: 1px solid var(--accent); }
+    .assignee-chip[data-role="coder"]      .mini-avatar { background: rgba(94,229,224,0.18); color: var(--cyan); border: 1px solid var(--cyan); }
+    .assignee-chip[data-role="researcher"] .mini-avatar { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange); }
+    .assignee-chip[data-role="writer"]     .mini-avatar { background: rgba(244,114,182,0.18); color: var(--pink); border: 1px solid var(--pink); }
+    .assignee-chip.selected {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--fg);
+    }
+
+    /* Form inputs */
+    .form-group { margin-bottom: 0.85rem; }
     .form-group label {
-      display: block;
-      font-size: 0.78rem;
-      color: var(--fg-dim);
-      margin-bottom: 0.35rem;
-      font-weight: 500;
+      display: block; font-size: 0.72rem;
+      color: var(--fg-faint); margin-bottom: 0.35rem;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+      font-family: "JetBrains Mono", monospace;
     }
     .form-group input, .form-group textarea, .form-group select {
       width: 100%;
-      background: var(--bg);
-      color: var(--fg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.7rem 0.85rem;
-      font-family: inherit;
-      font-size: 0.92rem;
+      background: var(--bg); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      font-family: inherit; font-size: 0.88rem;
     }
     .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-      outline: none;
-      border-color: var(--accent);
+      outline: none; border-color: var(--accent);
     }
     .form-group textarea {
-      min-height: 100px;
-      resize: vertical;
+      min-height: 90px; resize: vertical;
+    }
+    .form-group textarea.prompt-editor {
+      min-height: 200px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    /* === Org chart === */
+    .orgchart {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 2.5rem; padding: 2rem 1rem;
+    }
+    .orgchart-tier {
+      display: flex; justify-content: center; gap: 1.5rem;
+      flex-wrap: wrap; position: relative;
+    }
+    .orgchart-tier::before {
+      content: ""; position: absolute;
+      top: -1.6rem; left: 50%;
+      width: 2px; height: 1.5rem;
+      background: var(--border-strong);
+    }
+    .orgchart-tier:first-child::before { display: none; }
+    .org-node {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      min-width: 200px; max-width: 240px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .org-node:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 36px rgba(79, 141, 255, 0.18);
+    }
+    .org-node.executive {
+      border-left: 4px solid var(--purple);
+      background: linear-gradient(180deg, rgba(167, 139, 250, 0.08), var(--bg-elev));
+    }
+    .org-node.lead {
+      border-left: 4px solid var(--accent);
+      background: linear-gradient(180deg, rgba(79, 141, 255, 0.08), var(--bg-elev));
+    }
+    .org-node.team[data-name="coder"]      { border-left: 4px solid var(--cyan); }
+    .org-node.team[data-name="researcher"] { border-left: 4px solid var(--orange); }
+    .org-node.team[data-name="writer"]     { border-left: 4px solid var(--pink); }
+    .org-node .org-name { font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; }
+    .org-node .org-role { font-size: 0.76rem; color: var(--fg-dim); margin-top: 0.2rem; }
+    .org-node .org-status {
+      display: inline-block; font-size: 0.62rem;
+      font-family: "JetBrains Mono", monospace;
+      padding: 0.12rem 0.5rem; border-radius: 999px;
+      margin-top: 0.55rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .org-node .org-status.idle    { background: var(--bg-elev-2); color: var(--fg-faint); }
+    .org-node .org-status.busy    { background: var(--orange-dim); color: var(--orange); }
+    .org-node .org-status.offline { background: rgba(255, 85, 114, 0.1); color: var(--error); }
+    .org-node .org-stats {
+      display: flex; gap: 0.75rem;
+      margin-top: 0.65rem;
+      font-size: 0.7rem; color: var(--fg-faint);
+      font-family: "JetBrains Mono", monospace;
+    }
+    .org-node .org-stats span strong { color: var(--fg); }
+    .org-node .org-current {
+      margin-top: 0.55rem; padding-top: 0.55rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.7rem; color: var(--fg-dim);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* === List view === */
+    .list-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      font-size: 0.85rem;
+    }
+    .list-table th, .list-table td {
+      padding: 0.7rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .list-table th {
+      background: var(--bg-elev-2);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--fg-faint);
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+    }
+    .list-table th:hover { color: var(--fg); }
+    .list-table th .sort-arrow { color: var(--accent); margin-left: 0.3rem; }
+    .list-table tbody tr:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
+    .list-table tbody tr.incomplete td:first-child {
+      border-left: 3px solid var(--error);
+    }
+
+    /* === Gantt === */
+    .gantt-wrapper {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    .gantt-row {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .gantt-row:last-child { border-bottom: none; }
+    .gantt-label {
+      font-size: 0.78rem;
+      color: var(--fg);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding-right: 0.5rem;
+    }
+    .gantt-timeline {
+      position: relative;
+      height: 26px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 6px;
+      min-width: 600px;
+    }
+    .gantt-bar {
+      position: absolute;
+      top: 4px; bottom: 4px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: filter 0.15s;
+      display: flex; align-items: center;
+      padding: 0 0.5rem;
+      font-size: 0.65rem;
+      font-family: "JetBrains Mono", monospace;
+      color: rgba(0,0,0,0.85);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .gantt-bar:hover { filter: brightness(1.15); }
+    .gantt-bar[data-status="done"]        { background: var(--green); }
+    .gantt-bar[data-status="in_progress"] { background: var(--accent-bright); }
+    .gantt-bar[data-status="review"]      { background: var(--orange); }
+    .gantt-bar[data-status="todo"]        { background: var(--accent); color: white; }
+    .gantt-bar[data-status="backlog"]     { background: var(--fg-faint); color: white; }
+    .gantt-today {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--error);
+      box-shadow: 0 0 8px var(--error);
+      z-index: 5;
+    }
+    .gantt-today::before {
+      content: "TODAY";
+      position: absolute;
+      top: -16px; left: 50%; transform: translateX(-50%);
+      font-size: 0.6rem; font-family: "JetBrains Mono", monospace;
+      color: var(--error); font-weight: 600;
+    }
+    .gantt-axis {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 0.5rem;
+      padding: 0 0 0.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.5rem;
+    }
+    .gantt-axis-marks {
+      position: relative;
+      height: 18px;
+      min-width: 600px;
+    }
+    .gantt-axis-mark {
+      position: absolute;
+      top: 0;
+      font-size: 0.62rem;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg-faint);
+      transform: translateX(-50%);
+    }
+
+    /* === Calendar === */
+    .calendar {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+    }
+    .cal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1rem;
+    }
+    .cal-header h3 { margin: 0; font-size: 1.1rem; }
+    .cal-header button {
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      cursor: pointer;
       font-family: inherit;
     }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-day-name {
+      text-align: center;
+      font-size: 0.66rem;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.35rem 0;
+    }
+    .cal-day {
+      min-height: 100px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem;
+      display: flex; flex-direction: column; gap: 0.2rem;
+      overflow: hidden;
+    }
+    .cal-day.other-month { opacity: 0.35; }
+    .cal-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .cal-day .cal-num {
+      font-size: 0.72rem;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg-dim);
+      font-weight: 600;
+    }
+    .cal-day.today .cal-num { color: var(--accent); }
+    .cal-task {
+      font-size: 0.65rem;
+      padding: 0.18rem 0.4rem;
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: var(--accent-bright);
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      border-left: 2px solid var(--accent);
+    }
+    .cal-task[data-role="ceo"]        { background: rgba(167,139,250,0.15); color: var(--purple); border-left-color: var(--purple); }
+    .cal-task[data-role="pm"]         { background: var(--accent-dim); color: var(--accent-bright); border-left-color: var(--accent); }
+    .cal-task[data-role="coder"]      { background: rgba(94,229,224,0.13); color: var(--cyan); border-left-color: var(--cyan); }
+    .cal-task[data-role="researcher"] { background: var(--orange-dim); color: var(--orange); border-left-color: var(--orange); }
+    .cal-task[data-role="writer"]     { background: rgba(244,114,182,0.13); color: var(--pink); border-left-color: var(--pink); }
+    .cal-task.overdue { box-shadow: 0 0 0 1px var(--error); }
+    .cal-more {
+      font-size: 0.6rem;
+      color: var(--fg-faint);
+      font-family: "JetBrains Mono", monospace;
+      padding: 0.1rem 0.4rem;
+    }
+
+    /* === Stat cards === */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.85rem;
+    }
+    .stat-card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+    }
+    .stat-card .label {
+      font-size: 0.65rem;
+      color: var(--fg-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: "JetBrains Mono", monospace;
+      font-weight: 600;
+    }
+    .stat-card .value {
+      font-size: 1.85rem;
+      font-weight: 700;
+      margin-top: 0.35rem;
+      letter-spacing: -0.025em;
+      font-family: "Inter Tight", sans-serif;
+    }
+    .stat-card .sub {
+      font-size: 0.72rem;
+      color: var(--fg-dim);
+      margin-top: 0.25rem;
+      font-family: "JetBrains Mono", monospace;
+    }
+    .stat-card.accent { border-left: 3px solid var(--accent); }
+    .stat-card.warn   { border-left: 3px solid var(--warn); }
+    .stat-card.error  { border-left: 3px solid var(--error); }
+    .stat-card.green  { border-left: 3px solid var(--green); }
+    .stat-card.purple { border-left: 3px solid var(--purple); }
+
+    /* === Bar chart === */
+    .bar-chart {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem;
+    }
+    .bar-chart h4 {
+      margin: 0 0 0.85rem;
+      font-size: 0.85rem;
+      color: var(--fg-dim);
+      font-weight: 600;
+    }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 100px 1fr 50px;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+    .bar-row .bar-label {
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      text-transform: capitalize;
+    }
+    .bar-row .bar-track {
+      background: var(--bg-card);
+      border-radius: 6px;
+      height: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-row .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+      transition: width 0.4s ease;
+      border-radius: 5px;
+    }
+    .bar-row .bar-value {
+      font-size: 0.78rem;
+      color: var(--fg);
+      font-family: "JetBrains Mono", monospace;
+      text-align: right;
+    }
+
+    /* === Command Center === */
+    .cc-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 1100px) { .cc-grid { grid-template-columns: 1fr; } }
+    .cc-panel {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+    }
+    .cc-panel h4 {
+      margin: 0 0 0.85rem;
+      font-size: 0.85rem;
+      color: var(--fg);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .cc-panel h4 .badge {
+      font-size: 0.6rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-family: "JetBrains Mono", monospace;
+    }
+    .activity-feed {
+      max-height: 380px;
+      overflow-y: auto;
+      display: flex; flex-direction: column; gap: 0.55rem;
+    }
+    .activity-row {
+      display: flex; gap: 0.6rem; align-items: flex-start;
+      padding: 0.55rem 0.65rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.78rem;
+    }
+    .activity-row .ts {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.66rem;
+      color: var(--fg-faint);
+      flex-shrink: 0;
+    }
+    .activity-row .body { color: var(--fg-dim); flex: 1; line-height: 1.4; }
+    .activity-row .body strong { color: var(--fg); }
+
+    /* === AI insights === */
+    .ai-output {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+      min-height: 200px;
+      line-height: 1.6;
+      font-size: 0.92rem;
+      white-space: pre-wrap;
+      position: relative;
+    }
+    .ai-output.empty { color: var(--fg-faint); font-style: italic; }
+    .ai-output .cursor {
+      display: inline-block;
+      width: 8px; height: 1.1em;
+      background: var(--accent);
+      vertical-align: text-bottom;
+      animation: blink 1s steps(2) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
 
     /* === Footer === */
     footer {
@@ -623,20 +1008,24 @@
       padding: 2rem 1.5rem 2.5rem;
       border-top: 1px solid var(--border);
       color: var(--fg-dim);
-      font-size: 0.88rem;
+      font-size: 0.86rem;
     }
     footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
     footer a:hover { text-decoration: underline; }
     footer .stack-line {
       color: var(--fg-faint);
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       margin-top: 0.5rem;
       font-family: "JetBrains Mono", monospace;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1100px) {
+      .board { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 700px) {
       .board { grid-template-columns: 1fr; }
       main { padding: 1rem; }
+      .infra-strip { display: none; }
     }
   </style>
 </head>
@@ -645,11 +1034,20 @@
   <div class="aurora-vignette"></div>
 
   <header>
-    <h1>
-      <span class="dot"></span>
-      <span class="accent">hermes</span> fleet
-    </h1>
-    <div class="meta" id="health">connecting…</div>
+    <div class="brand">
+      <h1>
+        <span class="dot"></span>
+        <span class="accent">hermes</span> fleet
+      </h1>
+      <div class="tagline">multi-agent ops board · running on a single <strong>Openmesh Xnode</strong></div>
+    </div>
+    <div class="infra-strip" id="infra-strip">
+      <span class="infra-pill"><span class="led"></span>postgres</span>
+      <span class="infra-pill"><span class="led"></span>ollama · hermes3:3b</span>
+      <span class="infra-pill"><span class="led"></span><span id="agents-count">0</span> agents</span>
+      <span class="infra-pill"><span class="led"></span><span id="tasks-count">0</span> tasks</span>
+      <span class="infra-pill"><span class="led" id="sse-led"></span>live</span>
+    </div>
   </header>
 
   <main>
@@ -659,79 +1057,194 @@
       <button class="primary" id="new-task-btn">+ New task</button>
     </div>
 
-    <!-- Tab bar -->
-    <div class="tabs">
-      <button class="tab active" data-view="board">Kanban Board</button>
-      <button class="tab" data-view="orgchart">Org Chart</button>
+    <!-- ─── Tab bar ─── -->
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-view="board"><span class="tab-icon">▦</span>Board</button>
+      <button class="tab" data-view="list"><span class="tab-icon">≡</span>List</button>
+      <button class="tab" data-view="gantt"><span class="tab-icon">▭</span>Gantt</button>
+      <button class="tab" data-view="calendar"><span class="tab-icon">▤</span>Calendar</button>
+      <button class="tab" data-view="agents"><span class="tab-icon">◉</span>Agents</button>
+      <button class="tab" data-view="orgchart"><span class="tab-icon">⌬</span>Org Chart</button>
+      <button class="tab" data-view="command"><span class="tab-icon">◈</span>Command Center</button>
+      <button class="tab" data-view="analytics"><span class="tab-icon">▲</span>Analytics</button>
+      <button class="tab" data-view="advanced"><span class="tab-icon">∑</span>Advanced Insights</button>
+      <button class="tab" data-view="ai"><span class="tab-icon">✦</span>AI Insights</button>
     </div>
 
     <!-- ─── Board view ─── -->
     <div class="view active" id="view-board">
-
-    <!-- Agent strip -->
-    <div class="agents-strip" id="agents-strip"></div>
-
-    <!-- Kanban board (5 columns, matches OwnStartup) -->
-    <div class="board">
-      <div class="column" data-col="backlog">
-        <div class="column-head">
-          <span class="title"><span class="dot"></span>Backlog</span>
-          <span class="count" id="count-backlog">0</span>
+      <div class="agents-strip" id="agents-strip"></div>
+      <div class="board" id="board">
+        <div class="column" data-col="backlog">
+          <div class="column-head"><span class="title"><span class="dot"></span>Backlog</span><span class="count" id="count-backlog">0</span></div>
+          <div class="cards" id="col-backlog" data-drop="backlog"></div>
         </div>
-        <div class="cards" id="col-backlog"></div>
-      </div>
-      <div class="column" data-col="todo">
-        <div class="column-head">
-          <span class="title"><span class="dot"></span>To Do</span>
-          <span class="count" id="count-todo">0</span>
+        <div class="column" data-col="todo">
+          <div class="column-head"><span class="title"><span class="dot"></span>To Do</span><span class="count" id="count-todo">0</span></div>
+          <div class="cards" id="col-todo" data-drop="todo"></div>
         </div>
-        <div class="cards" id="col-todo"></div>
-      </div>
-      <div class="column" data-col="in_progress">
-        <div class="column-head">
-          <span class="title"><span class="dot"></span>In Progress</span>
-          <span class="count" id="count-in_progress">0</span>
+        <div class="column" data-col="in_progress">
+          <div class="column-head"><span class="title"><span class="dot"></span>In Progress</span><span class="count" id="count-in_progress">0</span></div>
+          <div class="cards" id="col-in_progress" data-drop="in_progress"></div>
         </div>
-        <div class="cards" id="col-in_progress"></div>
-      </div>
-      <div class="column" data-col="review">
-        <div class="column-head">
-          <span class="title"><span class="dot"></span>Review</span>
-          <span class="count" id="count-review">0</span>
+        <div class="column" data-col="review">
+          <div class="column-head"><span class="title"><span class="dot"></span>Review</span><span class="count" id="count-review">0</span></div>
+          <div class="cards" id="col-review" data-drop="review"></div>
         </div>
-        <div class="cards" id="col-review"></div>
-      </div>
-      <div class="column" data-col="done">
-        <div class="column-head">
-          <span class="title"><span class="dot"></span>Done</span>
-          <span class="count" id="count-done">0</span>
+        <div class="column" data-col="done">
+          <div class="column-head"><span class="title"><span class="dot"></span>Done</span><span class="count" id="count-done">0</span></div>
+          <div class="cards" id="col-done" data-drop="done"></div>
         </div>
-        <div class="cards" id="col-done"></div>
       </div>
     </div>
-    </div><!-- /view-board -->
+
+    <!-- ─── List view ─── -->
+    <div class="view" id="view-list">
+      <table class="list-table" id="list-table">
+        <thead><tr>
+          <th data-sort="title">Title</th>
+          <th data-sort="assigned_role">Assigned</th>
+          <th data-sort="status">Status</th>
+          <th data-sort="due_date">Due</th>
+          <th data-sort="created_at">Created</th>
+        </tr></thead>
+        <tbody id="list-body"></tbody>
+      </table>
+    </div>
+
+    <!-- ─── Gantt view ─── -->
+    <div class="view" id="view-gantt">
+      <div class="gantt-wrapper" id="gantt"></div>
+    </div>
+
+    <!-- ─── Calendar view ─── -->
+    <div class="view" id="view-calendar">
+      <div class="calendar">
+        <div class="cal-header">
+          <button id="cal-prev">‹ Prev</button>
+          <h3 id="cal-month">…</h3>
+          <button id="cal-next">Next ›</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+    </div>
+
+    <!-- ─── Agents view ─── -->
+    <div class="view" id="view-agents">
+      <div class="stat-grid" id="agents-stat-grid"></div>
+      <div id="agents-detail-list" style="display:flex; flex-direction:column; gap:0.85rem;"></div>
+    </div>
 
     <!-- ─── Org Chart view ─── -->
     <div class="view" id="view-orgchart">
-      <div style="text-align:center; color:var(--fg-dim); font-size:0.88rem; padding:0.5rem 1rem 0;">
-        Click any agent to chat with them as a team member.
-        Each tier reports up to the level above. CEO sets strategy → PM coordinates → specialists execute.
+      <div style="text-align:center; color:var(--fg-dim); font-size:0.85rem; padding:0.5rem 1rem 0;">
+        Click any agent to chat with them. CEO sets strategy → PM coordinates → specialists execute. Click the cog in the chat modal to edit any agent's persona.
       </div>
       <div class="orgchart" id="orgchart"></div>
     </div>
+
+    <!-- ─── Command Center ─── -->
+    <div class="view" id="view-command">
+      <div class="stat-grid" id="cc-stat-grid"></div>
+      <div class="cc-grid">
+        <div class="cc-panel">
+          <h4>Live activity feed <span class="badge">SSE</span></h4>
+          <div class="activity-feed" id="cc-activity"></div>
+        </div>
+        <div class="cc-panel">
+          <h4>Infrastructure</h4>
+          <div id="cc-infra" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Analytics ─── -->
+    <div class="view" id="view-analytics">
+      <div class="stat-grid" id="an-stat-grid"></div>
+      <div class="bar-chart">
+        <h4>Tasks by status</h4>
+        <div id="an-status-bars"></div>
+      </div>
+      <div class="bar-chart">
+        <h4>Tasks by agent (workload)</h4>
+        <div id="an-agent-bars"></div>
+      </div>
+      <div class="bar-chart">
+        <h4>Velocity — last 14 days (tasks completed)</h4>
+        <div id="an-velocity"></div>
+      </div>
+    </div>
+
+    <!-- ─── Advanced Insights ─── -->
+    <div class="view" id="view-advanced">
+      <div class="stat-grid" id="adv-stat-grid"></div>
+      <div class="cc-panel">
+        <h4>Overdue tasks</h4>
+        <table class="list-table">
+          <thead><tr><th>Title</th><th>Agent</th><th>Status</th><th>Due</th></tr></thead>
+          <tbody id="adv-overdue"></tbody>
+        </table>
+      </div>
+      <div class="cc-panel">
+        <h4>Per-agent throughput</h4>
+        <div id="adv-agent-throughput"></div>
+      </div>
+    </div>
+
+    <!-- ─── AI Insights ─── -->
+    <div class="view" id="view-ai">
+      <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+        <h2 style="margin:0; font-size:1.2rem; flex:1;">Live executive briefing</h2>
+        <button class="primary" id="ai-generate" style="background:var(--accent); color:#0a0a0a; border:none; padding:0.6rem 1rem; border-radius:10px; font-weight:600; cursor:pointer; font-family:inherit;">✦ Generate briefing</button>
+      </div>
+      <div style="font-size:0.8rem; color:var(--fg-dim); line-height:1.55;">
+        Streamed live from <strong style="color:var(--cyan);">hermes3:3b</strong> running on this Xnode's
+        <strong style="color:var(--cyan);">hermes-ollama</strong> container. The model receives a structured
+        snapshot of the current board (status counts, overdue tasks, velocity, agent loads) and writes a short
+        chief-of-staff briefing on bottlenecks and recommendations. No RAG required — the dataset summary fits
+        in one prompt.
+      </div>
+      <div class="ai-output empty" id="ai-output">click "Generate briefing" to ask hermes3 for an executive analysis of the current board</div>
+    </div>
   </main>
 
-  <!-- Task detail modal -->
+  <!-- Task detail / edit modal -->
   <div class="modal-backdrop" id="task-modal">
     <div class="modal">
       <h3 id="modal-title">…</h3>
       <div class="modal-meta" id="modal-meta"></div>
       <div class="modal-description" id="modal-description"></div>
-      <div><strong style="font-size:0.85rem; color:var(--fg-dim); display:block; margin-bottom:0.5rem;">AGENT OUTPUT</strong></div>
-      <div class="output" id="modal-output">no output yet</div>
+
+      <div class="modal-section">
+        <div class="section-label">Status</div>
+        <div class="status-buttons" id="modal-status-btns">
+          <button class="status-btn" data-status="backlog"><span class="led"></span>Backlog</button>
+          <button class="status-btn" data-status="todo"><span class="led"></span>To Do</button>
+          <button class="status-btn" data-status="in_progress"><span class="led"></span>In Progress</button>
+          <button class="status-btn" data-status="review"><span class="led"></span>Review</button>
+          <button class="status-btn" data-status="done"><span class="led"></span>Done</button>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-label">Assignees (one or more)</div>
+        <div class="assignee-chips" id="modal-assignee-chips"></div>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-label">Due date</div>
+        <input type="datetime-local" id="modal-due-date" style="background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.85rem; font-family:inherit; font-size:0.85rem;">
+      </div>
+
+      <div class="modal-section">
+        <div class="section-label">Agent output</div>
+        <div class="output" id="modal-output">no output yet</div>
+      </div>
+
       <div class="modal-actions">
-        <button id="modal-chat-agent" class="primary">💬 Chat with this agent</button>
+        <button id="modal-chat-agent">💬 Chat with agent</button>
         <button id="modal-close">Close</button>
+        <button class="primary" id="modal-save">Save changes</button>
       </div>
     </div>
   </div>
@@ -739,13 +1252,12 @@
   <!-- Chat-with-agent modal -->
   <div class="modal-backdrop" id="agent-chat-modal">
     <div class="modal" style="max-width: 720px;">
-      <h3 id="agent-chat-title">Chat</h3>
+      <h3>
+        <span id="agent-chat-title">Chat</span>
+        <button class="icon-btn" id="agent-prompt-btn" title="Edit this agent's system prompt">⚙</button>
+      </h3>
       <div class="modal-meta" id="agent-chat-meta"></div>
-      <div id="agent-chat-thread" style="display:flex; flex-direction:column; gap:0.75rem; max-height:55vh; overflow-y:auto; padding:0.5rem; background:var(--code-bg); border:1px solid var(--border); border-radius:10px; margin-bottom:1rem;">
-        <div style="color:var(--fg-faint); font-size:0.85rem; text-align:center; padding:1rem;">
-          start chatting with this agent — they respond live as a team member
-        </div>
-      </div>
+      <div id="agent-chat-thread" style="display:flex; flex-direction:column; gap:0.65rem; max-height:50vh; overflow-y:auto; padding:0.5rem; background:var(--code-bg); border:1px solid var(--border); border-radius:10px; margin-bottom:1rem;"></div>
       <form id="agent-chat-form" style="display:flex; gap:0.5rem;">
         <input id="agent-chat-input" type="text" placeholder="say hi to your team member…" autocomplete="off"
           style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:8px; padding:0.7rem 0.85rem; font-family:inherit; font-size:0.92rem;">
@@ -757,21 +1269,45 @@
     </div>
   </div>
 
+  <!-- Agent prompt editor modal -->
+  <div class="modal-backdrop" id="agent-prompt-modal">
+    <div class="modal">
+      <h3>Edit agent persona</h3>
+      <div class="modal-meta" id="agent-prompt-meta"></div>
+      <div class="form-group">
+        <label>Display role</label>
+        <input type="text" id="agent-prompt-role">
+      </div>
+      <div class="form-group">
+        <label>System prompt</label>
+        <textarea id="agent-prompt-text" class="prompt-editor"></textarea>
+      </div>
+      <div style="font-size:0.72rem; color:var(--fg-faint); margin-bottom:0.5rem;">
+        Changes take effect on the next polling cycle of the agent worker (~5s).
+        Edits persist across redeploys.
+      </div>
+      <div class="modal-actions">
+        <button id="agent-prompt-cancel">Cancel</button>
+        <button class="primary" id="agent-prompt-save">Save persona</button>
+      </div>
+    </div>
+  </div>
+
   <!-- New task modal -->
   <div class="modal-backdrop" id="new-task-modal">
     <div class="modal">
       <h3>New task</h3>
-      <div class="modal-meta">give one to an agent — they'll pick it up and start working</div>
+      <div class="modal-meta">create work for the team — drop in todo so an agent picks it up immediately</div>
       <div class="form-group">
-        <label for="nt-title">Title</label>
-        <input id="nt-title" type="text" placeholder="e.g. Write a Python function to validate email addresses">
+        <label>Title</label>
+        <input id="nt-title" type="text" placeholder="e.g. Draft launch FAQ section">
       </div>
       <div class="form-group">
-        <label for="nt-description">Description (optional)</label>
+        <label>Description</label>
         <textarea id="nt-description" placeholder="any extra detail the agent needs…"></textarea>
       </div>
       <div class="form-group">
-        <label for="nt-role">Assign to</label>
+        <label>Assign to</label>
         <select id="nt-role">
           <option value="ceo">ceo — chief executive officer</option>
           <option value="pm" selected>pm — project manager</option>
@@ -781,11 +1317,15 @@
         </select>
       </div>
       <div class="form-group">
-        <label for="nt-status">Start in</label>
+        <label>Start in</label>
         <select id="nt-status">
-          <option value="todo" selected>To Do — agent will pick up immediately</option>
-          <option value="backlog">Backlog — manual staging, agent waits</option>
+          <option value="todo" selected>To Do — agent picks up immediately</option>
+          <option value="backlog">Backlog — manual staging</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>Due date (optional)</label>
+        <input type="datetime-local" id="nt-due">
       </div>
       <div class="modal-actions">
         <button id="nt-cancel">Cancel</button>
@@ -796,27 +1336,40 @@
 
   <footer>
     <div>
-      Deployed with <strong>Openmesh CLI v2.0</strong> via
-      <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> —
-      <a href="https://github.com/johnforfar" target="_blank" rel="noopener">John Forfar</a>
+      Deployed via <strong>Openmesh CLI</strong> to a single
+      <a href="https://openmesh.network" target="_blank" rel="noopener">Openmesh Xnode</a> —
+      sovereign, self-hosted, no cloud dependencies.
     </div>
-    <div class="stack-line">hermes3:3b · ollama · postgres · 4 agent containers · 100% sovereign</div>
+    <div class="stack-line">6 NixOS containers · postgres · ollama · hermes3:3b · 5 agent personas · 100% on-device</div>
   </footer>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const $$ = (sel) => document.querySelector(sel);
+    const $$ = (sel, root=document) => root.querySelector(sel);
+    const $$$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
     const escape = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    const fmt = (iso, opts) => iso ? new Date(iso).toLocaleString(undefined, opts || {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
 
     const ROLE_LABELS = { ceo: 'CEO', pm: 'PM', coder: 'CODER', researcher: 'RESEARCHER', writer: 'WRITER' };
-
-    let currentTaskAgent = null; // role assigned to the task open in the modal
+    const ROLE_INITIALS = { ceo: 'CE', pm: 'PM', coder: 'CD', researcher: 'RS', writer: 'WR' };
+    const ALL_ROLES = ['ceo', 'pm', 'coder', 'researcher', 'writer'];
+    const COLUMNS = ['backlog', 'todo', 'in_progress', 'review', 'done'];
 
     let state = {
       currentProjectId: null,
       projects: [],
       tasks: [],
       agents: [],
+      activity: [],   // local activity log derived from SSE deltas
+      lastSummary: null,
+      // names of agents currently mid-chat / mid-insight (UI-only, fast feedback)
+      streamingAgents: new Set(),
+      currentTaskId: null,
+      currentTaskRole: null,
+      currentChatAgent: null,
+      sortBy: 'created_at',
+      sortDir: 'desc',
+      calMonth: null,
     };
 
     // ---- API helpers ----
@@ -844,112 +1397,190 @@
     async function loadAgents() {
       state.agents = await api('/agents');
       renderAgents();
-      // Re-render org chart if it's the active view
-      if (document.querySelector('.tab.active')?.dataset.view === 'orgchart') {
-        renderOrgChart();
-      }
+      renderHeaderInfra();
+      const active = document.querySelector('.tab.active')?.dataset.view;
+      if (active === 'orgchart') renderOrgChart();
+      if (active === 'agents') renderAgentsView();
+      if (active === 'command') renderCommandCenter();
     }
 
     async function loadTasks() {
       if (!state.currentProjectId) return;
       state.tasks = await api(`/tasks?project_id=${state.currentProjectId}`);
       renderBoard();
+      renderHeaderInfra();
+      const active = document.querySelector('.tab.active')?.dataset.view;
+      if (active === 'list') renderList();
+      if (active === 'gantt') renderGantt();
+      if (active === 'calendar') renderCalendar();
+      if (active === 'analytics') loadInsightsAndRender();
+      if (active === 'advanced') loadInsightsAndRender();
+      if (active === 'command') renderCommandCenter();
     }
 
-    async function loadHealth() {
-      try {
-        const h = await api('/health');
-        $('health').textContent = `${h.agents} agents · ${h.tasks} tasks · ${h.in_progress} active`;
-      } catch (e) {
-        $('health').textContent = 'offline';
-      }
+    function renderHeaderInfra() {
+      $('agents-count').textContent = state.agents.length;
+      $('tasks-count').textContent = state.tasks.length;
     }
 
-    // ---- Render ----
+    // ---- Agent strip ----
+    function effectiveStatus(a) {
+      // Local UI override: while we're actively streaming with this agent
+      // the polling worker hasn't seen our request, so the DB still says
+      // "idle". Show "thinking" until the stream finishes.
+      if (state.streamingAgents.has(a.name)) return 'thinking';
+      return a.status || 'offline';
+    }
+
     function renderAgents() {
-      $('agents-strip').innerHTML = state.agents.map(a => `
-        <div class="agent-card" data-name="${escape(a.name)}" data-role="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
+      $('agents-strip').innerHTML = state.agents.map(a => {
+        const st = effectiveStatus(a);
+        const streaming = state.streamingAgents.has(a.name);
+        const liveLine = streaming
+          ? '<span style="color:var(--accent-bright)" class="live-dots">replying live via hermes3:3b</span>'
+          : (a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">idle · click to chat</span>');
+        return `
+        <div class="agent-card ${streaming ? 'streaming' : ''}" data-name="${escape(a.name)}" data-role="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
           <div class="agent-head">
             <div>
               <div class="agent-name">${escape(a.name)}</div>
               <div class="agent-role">${escape(a.role)}</div>
             </div>
-            <span class="agent-status ${escape(a.status || 'offline')}">${escape(a.status || 'offline')}</span>
+            <span class="agent-status ${escape(st)}">${escape(st)}</span>
           </div>
-          <div class="agent-current">${a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">idle · click to chat</span>'}</div>
+          <div class="agent-current">${liveLine}</div>
         </div>
-      `).join('');
-      // Wire each card to open the chat modal
-      $('agents-strip').querySelectorAll('.agent-card').forEach(card => {
+      `;}).join('');
+      $$$('.agent-card', $('agents-strip')).forEach(card => {
         card.addEventListener('click', () => openAgentChat(card.dataset.name));
       });
     }
 
-    const COLUMNS = ['backlog', 'todo', 'in_progress', 'review', 'done'];
+    // ---- Board ----
+    function isIncomplete(t) {
+      const noAssignees = !t.assignees || t.assignees.length === 0;
+      const noDue = !t.due_date;
+      return (noAssignees || noDue) && t.status !== 'done' && t.status !== 'failed';
+    }
+
+    function dueClass(t) {
+      if (!t.due_date) return 'missing';
+      const d = new Date(t.due_date);
+      const now = new Date();
+      const days = (d - now) / 86400000;
+      if (days < 0 && t.status !== 'done') return 'overdue';
+      if (days < 3) return 'soon';
+      return '';
+    }
+
+    function dueLabel(t) {
+      if (!t.due_date) return 'no due date';
+      const d = new Date(t.due_date);
+      const now = new Date();
+      const days = Math.round((d - now) / 86400000);
+      if (days < 0) return `${-days}d overdue`;
+      if (days === 0) return 'due today';
+      if (days < 30) return `due in ${days}d`;
+      return d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+    }
 
     function renderBoard() {
       const cols = Object.fromEntries(COLUMNS.map(c => [c, []]));
-      for (const t of state.tasks) {
-        if (cols[t.status]) cols[t.status].push(t);
-      }
+      for (const t of state.tasks) if (cols[t.status]) cols[t.status].push(t);
       for (const col of COLUMNS) {
         const tasks = cols[col];
         const listEl = $(`col-${col}`);
         const countEl = $(`count-${col}`);
         if (listEl) {
-          if (tasks.length === 0) {
-            listEl.innerHTML = '<div class="empty-state">no tasks here</div>';
-          } else {
-            listEl.innerHTML = tasks.map(renderCard).join('');
-            listEl.querySelectorAll('.card').forEach(c => {
-              c.addEventListener('click', () => openTask(parseInt(c.dataset.id)));
+          listEl.innerHTML = tasks.length === 0
+            ? '<div class="empty-state">no tasks</div>'
+            : tasks.map(renderCard).join('');
+          $$$('.card', listEl).forEach(c => {
+            c.addEventListener('click', () => openTask(parseInt(c.dataset.id)));
+            c.addEventListener('dragstart', e => {
+              c.classList.add('dragging');
+              e.dataTransfer.setData('text/plain', c.dataset.id);
+              e.dataTransfer.effectAllowed = 'move';
             });
-          }
+            c.addEventListener('dragend', () => c.classList.remove('dragging'));
+          });
         }
         if (countEl) countEl.textContent = tasks.length;
       }
+      // Wire drop targets once
+      $$$('.cards[data-drop]').forEach(col => {
+        col.addEventListener('dragover', e => { e.preventDefault(); col.parentElement.classList.add('drop-target'); });
+        col.addEventListener('dragleave', () => col.parentElement.classList.remove('drop-target'));
+        col.addEventListener('drop', async e => {
+          e.preventDefault();
+          col.parentElement.classList.remove('drop-target');
+          const id = parseInt(e.dataTransfer.getData('text/plain'));
+          const newStatus = col.dataset.drop;
+          await api(`/tasks/${id}/move`, { method: 'POST', body: JSON.stringify({ status: newStatus }) });
+          loadTasks();
+        });
+      });
     }
 
     function renderCard(t) {
       const role = (t.assigned_role || 'pm').toLowerCase();
       const status = t.status || 'todo';
-      const time = t.created_at ? new Date(t.created_at).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
-      const agent = t.assigned_agent_name ? `· @${escape(t.assigned_agent_name)}` : '';
+      const incomplete = isIncomplete(t);
+      const dc = dueClass(t);
+      const assignees = (t.assignees && t.assignees.length) ? t.assignees : [];
+      const avatars = assignees.length
+        ? assignees.map(a => `<span class="avatar ${escape(a)}" title="${escape(a)}">${ROLE_INITIALS[a] || a.slice(0,2).toUpperCase()}</span>`).join('')
+        : `<span class="avatar empty" title="no assignee">!</span>`;
       return `
-        <div class="card" data-id="${t.id}" data-status="${status}">
+        <div class="card ${incomplete ? 'incomplete' : ''}" draggable="true" data-id="${t.id}" data-status="${status}">
           <div class="title">${escape(t.title)}</div>
           ${t.description ? `<div class="description">${escape(t.description)}</div>` : ''}
           <div class="meta">
             <span class="role-pill ${role}">${escape(ROLE_LABELS[role] || role)}</span>
-            <span class="timestamp">${escape(time)} ${agent}</span>
+            <span class="due-pill ${dc}">${escape(dueLabel(t))}</span>
+            <span class="assignees-row">${avatars}</span>
           </div>
         </div>
       `;
     }
 
-    // ---- Modals ----
+    // ---- Task modal ----
     async function openTask(id) {
       try {
         const t = await api(`/tasks/${id}`);
+        state.currentTaskId = id;
+        state.currentTaskRole = (t.assigned_role || '').toLowerCase();
         $('modal-title').textContent = t.title;
-        const role = (t.assigned_role || '').toLowerCase();
-        currentTaskAgent = role;
-        $('modal-chat-agent').textContent = `💬 Chat with @${role}`;
-        const status = t.status || 'backlog';
-        $('modal-meta').textContent = `#${t.id} · ${role} · ${status}` +
-          (t.assigned_agent_name ? ` · @${t.assigned_agent_name}` : '');
-        $('modal-description').innerHTML = escape(t.description || '(no description)');
-        const out = $('modal-output');
-        if (t.output) {
-          out.classList.remove('empty');
-          out.textContent = t.output;
-        } else if (t.error) {
-          out.classList.remove('empty');
-          out.textContent = 'Error: ' + t.error;
+        $('modal-meta').textContent = `#${t.id} · ${t.status}` + (t.assigned_agent_name ? ` · @${t.assigned_agent_name}` : '');
+        $('modal-description').textContent = t.description || '(no description)';
+
+        $$$('.status-btn', $('modal-status-btns')).forEach(b => {
+          b.classList.toggle('active', b.dataset.status === t.status);
+        });
+
+        const sel = new Set(t.assignees || []);
+        $('modal-assignee-chips').innerHTML = ALL_ROLES.map(r => `
+          <span class="assignee-chip ${sel.has(r) ? 'selected' : ''}" data-role="${r}">
+            <span class="mini-avatar">${ROLE_INITIALS[r]}</span>${r}
+          </span>
+        `).join('');
+        $$$('.assignee-chip', $('modal-assignee-chips')).forEach(chip => {
+          chip.addEventListener('click', () => chip.classList.toggle('selected'));
+        });
+
+        if (t.due_date) {
+          const d = new Date(t.due_date);
+          const pad = n => String(n).padStart(2,'0');
+          $('modal-due-date').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
         } else {
-          out.classList.add('empty');
-          out.textContent = status === 'in_progress' ? 'agent is working on this…' : 'no output yet';
+          $('modal-due-date').value = '';
         }
+
+        const out = $('modal-output');
+        if (t.output) { out.classList.remove('empty'); out.textContent = t.output; }
+        else if (t.error) { out.classList.remove('empty'); out.textContent = 'Error: ' + t.error; }
+        else { out.classList.add('empty'); out.textContent = t.status === 'in_progress' ? 'agent is working on this…' : 'no output yet'; }
+
         $('task-modal').classList.add('open');
       } catch (e) {
         alert('Failed to load task: ' + e.message);
@@ -961,81 +1592,76 @@
       if (e.target.id === 'task-modal') $('task-modal').classList.remove('open');
     });
     $('modal-chat-agent').addEventListener('click', () => {
-      if (!currentTaskAgent) return;
-      $('task-modal').classList.remove('open');
-      openAgentChat(currentTaskAgent);
+      if (state.currentTaskRole) { $('task-modal').classList.remove('open'); openAgentChat(state.currentTaskRole); }
     });
-
-    // ---- Tab switching ----
-    document.querySelectorAll('.tab').forEach(btn => {
+    $$$('.status-btn', $('modal-status-btns')).forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
-        const view = btn.dataset.view;
-        document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `view-${view}`));
-        if (view === 'orgchart') renderOrgChart();
+        $$$('.status-btn', $('modal-status-btns')).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
       });
     });
-
-    // ---- Org chart ----
-    function renderOrgChart() {
-      const root = $('orgchart');
-      const tiers = { executive: [], lead: [], team: [] };
-      for (const a of state.agents) {
-        const t = a.tier || 'team';
-        if (tiers[t]) tiers[t].push(a);
+    $('modal-save').addEventListener('click', async () => {
+      if (!state.currentTaskId) return;
+      const newStatus = $$('.status-btn.active', $('modal-status-btns'))?.dataset.status;
+      const assignees = $$$('.assignee-chip.selected', $('modal-assignee-chips')).map(c => c.dataset.role);
+      const dueRaw = $('modal-due-date').value;
+      const due_date = dueRaw ? new Date(dueRaw).toISOString() : null;
+      try {
+        await api(`/tasks/${state.currentTaskId}/update`, {
+          method: 'POST',
+          body: JSON.stringify({ assignees, due_date }),
+        });
+        if (newStatus) {
+          await api(`/tasks/${state.currentTaskId}/move`, {
+            method: 'POST', body: JSON.stringify({ status: newStatus }),
+          });
+        }
+        $('task-modal').classList.remove('open');
+        loadTasks();
+      } catch (e) {
+        alert('Save failed: ' + e.message);
       }
-      const tierOrder = ['executive', 'lead', 'team'];
-      root.innerHTML = tierOrder
-        .filter(t => tiers[t].length)
-        .map(t => `
-          <div class="orgchart-tier">
-            ${tiers[t].map(a => `
-              <div class="org-node ${escape(t)}" data-name="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
-                <div class="org-name">${escape(a.name)}</div>
-                <div class="org-role">${escape(a.role)}</div>
-                <span class="org-status ${escape(a.status || 'offline')}">${escape(a.status || 'offline')}</span>
-                <div class="org-stats">
-                  <span><strong>${a.open_tasks ?? 0}</strong> open</span>
-                  <span><strong>${a.done_tasks ?? 0}</strong> done</span>
-                  <span><strong>${a.total_tasks ?? 0}</strong> total</span>
-                </div>
-                ${a.current_task_title ? `<div class="org-current">↳ ${escape(a.current_task_title)}</div>` : ''}
-              </div>
-            `).join('')}
-          </div>
-        `).join('');
-      root.querySelectorAll('.org-node').forEach(node => {
-        node.addEventListener('click', () => openAgentChat(node.dataset.name));
-      });
-    }
+    });
 
+    // ---- New task ----
     $('new-task-btn').addEventListener('click', () => $('new-task-modal').classList.add('open'));
     $('nt-cancel').addEventListener('click', () => $('new-task-modal').classList.remove('open'));
     $('new-task-modal').addEventListener('click', e => {
       if (e.target.id === 'new-task-modal') $('new-task-modal').classList.remove('open');
     });
-
     $('nt-create').addEventListener('click', async () => {
       const title = $('nt-title').value.trim();
       if (!title) { alert('title required'); return; }
-      const description = $('nt-description').value.trim();
-      const role = $('nt-role').value;
-      const status = $('nt-status').value;
       try {
         const created = await api('/tasks', {
           method: 'POST',
           body: JSON.stringify({
-            title, description, role, status,
+            title,
+            description: $('nt-description').value.trim(),
+            role: $('nt-role').value,
+            status: $('nt-status').value,
             project_id: state.currentProjectId,
           }),
         });
-        // If user picked todo status, move it there immediately so agent picks up
-        if (status !== 'todo' && status !== 'backlog') { /* ignore */ }
-        $('nt-title').value = '';
-        $('nt-description').value = '';
+        // If a due date was provided, update it via the partial endpoint
+        const dueRaw = $('nt-due').value;
+        if (dueRaw) {
+          await api(`/tasks/${created.id}/update`, {
+            method: 'POST',
+            body: JSON.stringify({
+              due_date: new Date(dueRaw).toISOString(),
+              assignees: [$('nt-role').value],
+            }),
+          });
+        } else {
+          await api(`/tasks/${created.id}/update`, {
+            method: 'POST',
+            body: JSON.stringify({ assignees: [$('nt-role').value] }),
+          });
+        }
+        ['nt-title','nt-description','nt-due'].forEach(id => $(id).value = '');
         $('new-task-modal').classList.remove('open');
         loadTasks();
-        loadHealth();
       } catch (e) {
         alert('Failed: ' + e.message);
       }
@@ -1048,18 +1674,470 @@
       loadTasks();
     });
 
-    // ---- Chat-with-agent (SSE streaming) ----
-    let currentChatAgent = null;
+    // ---- Tabs ----
+    $$$('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        $$$('.tab').forEach(b => b.classList.toggle('active', b === btn));
+        const view = btn.dataset.view;
+        $$$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${view}`));
+        if (view === 'orgchart') renderOrgChart();
+        if (view === 'list') renderList();
+        if (view === 'gantt') renderGantt();
+        if (view === 'calendar') renderCalendar();
+        if (view === 'agents') renderAgentsView();
+        if (view === 'command') renderCommandCenter();
+        if (view === 'analytics') loadInsightsAndRender();
+        if (view === 'advanced') loadInsightsAndRender();
+      });
+    });
 
+    // ---- Org chart ----
+    function renderOrgChart() {
+      const root = $('orgchart');
+      const tiers = { executive: [], lead: [], team: [] };
+      for (const a of state.agents) {
+        const t = a.tier || 'team';
+        if (tiers[t]) tiers[t].push(a);
+      }
+      const order = ['executive', 'lead', 'team'];
+      root.innerHTML = order.filter(t => tiers[t].length).map(t => `
+        <div class="orgchart-tier">
+          ${tiers[t].map(a => `
+            <div class="org-node ${escape(t)}" data-name="${escape(a.name)}" title="Click to chat with ${escape(a.name)}">
+              <div class="org-name">${escape(a.name)}</div>
+              <div class="org-role">${escape(a.role)}</div>
+              <span class="org-status ${escape(a.status || 'offline')}">${escape(a.status || 'offline')}</span>
+              <div class="org-stats">
+                <span><strong>${a.open_tasks ?? 0}</strong> open</span>
+                <span><strong>${a.done_tasks ?? 0}</strong> done</span>
+                <span><strong>${a.total_tasks ?? 0}</strong> total</span>
+              </div>
+              ${a.current_task_title ? `<div class="org-current">↳ ${escape(a.current_task_title)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+      $$$('.org-node', root).forEach(n => n.addEventListener('click', () => openAgentChat(n.dataset.name)));
+    }
+
+    // ---- List view ----
+    function renderList() {
+      const tbody = $('list-body');
+      const sorted = [...state.tasks].sort((a, b) => {
+        const av = a[state.sortBy] ?? '';
+        const bv = b[state.sortBy] ?? '';
+        const cmp = String(av).localeCompare(String(bv));
+        return state.sortDir === 'asc' ? cmp : -cmp;
+      });
+      tbody.innerHTML = sorted.map(t => {
+        const role = (t.assigned_role || '').toLowerCase();
+        const incomplete = isIncomplete(t);
+        const ass = (t.assignees && t.assignees.length) ? t.assignees.join(', ') : '<span style="color:var(--error)">unassigned</span>';
+        return `
+          <tr class="${incomplete ? 'incomplete' : ''}" data-id="${t.id}">
+            <td>${escape(t.title)}</td>
+            <td><span class="role-pill ${role}" style="font-size:0.62rem; padding:0.13rem 0.45rem; border-radius:999px;">${ass}</span></td>
+            <td><span style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-dim)">${escape(t.status)}</span></td>
+            <td><span class="${dueClass(t) === 'overdue' ? '' : ''}" style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:${dueClass(t)==='overdue'?'var(--error)':dueClass(t)==='missing'?'var(--error)':'var(--fg-dim)'}">${escape(dueLabel(t))}</span></td>
+            <td style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-faint)">${escape(fmt(t.created_at))}</td>
+          </tr>
+        `;
+      }).join('');
+      $$$('tr', tbody).forEach(tr => tr.addEventListener('click', () => openTask(parseInt(tr.dataset.id))));
+      // Sort handlers
+      $$$('th[data-sort]', $('list-table')).forEach(th => {
+        th.onclick = () => {
+          const k = th.dataset.sort;
+          if (state.sortBy === k) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+          else { state.sortBy = k; state.sortDir = 'asc'; }
+          renderList();
+        };
+        const arrow = state.sortBy === th.dataset.sort ? `<span class="sort-arrow">${state.sortDir==='asc'?'↑':'↓'}</span>` : '';
+        th.innerHTML = th.dataset.sort.replace('_',' ') + arrow;
+      });
+    }
+
+    // ---- Gantt view ----
+    function renderGantt() {
+      const root = $('gantt');
+      const tasks = state.tasks.filter(t => t.due_date || t.created_at);
+      if (!tasks.length) { root.innerHTML = '<div class="empty-state">no tasks</div>'; return; }
+      // Compute date window
+      const now = new Date();
+      let minD = now, maxD = now;
+      for (const t of tasks) {
+        const start = new Date(t.created_at);
+        const end = t.due_date ? new Date(t.due_date) : (t.completed_at ? new Date(t.completed_at) : now);
+        if (start < minD) minD = start;
+        if (end > maxD) maxD = end;
+      }
+      // Pad
+      minD = new Date(minD.getTime() - 86400000 * 2);
+      maxD = new Date(maxD.getTime() + 86400000 * 3);
+      const span = maxD - minD;
+      const pct = (d) => ((new Date(d) - minD) / span) * 100;
+      const todayPct = pct(now);
+
+      // Axis marks: every ~7 days
+      const marks = [];
+      const stepDays = Math.max(3, Math.round((span / 86400000) / 12));
+      for (let d = new Date(minD); d <= maxD; d.setDate(d.getDate() + stepDays)) {
+        marks.push({ date: new Date(d), pct: pct(d) });
+      }
+
+      const sorted = [...tasks].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      let html = `
+        <div class="gantt-axis">
+          <div></div>
+          <div class="gantt-axis-marks">
+            ${marks.map(m => `<div class="gantt-axis-mark" style="left:${m.pct}%">${m.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div>`).join('')}
+          </div>
+        </div>
+      `;
+      html += sorted.map(t => {
+        const start = new Date(t.created_at);
+        const end = t.completed_at ? new Date(t.completed_at) : (t.due_date ? new Date(t.due_date) : now);
+        let left = pct(start);
+        let right = pct(end);
+        if (right - left < 1.5) right = left + 1.5;
+        return `
+          <div class="gantt-row">
+            <div class="gantt-label" title="${escape(t.title)}">${escape(t.title)}</div>
+            <div class="gantt-timeline">
+              <div class="gantt-today" style="left:${todayPct}%"></div>
+              <div class="gantt-bar" data-status="${escape(t.status)}" data-id="${t.id}"
+                   style="left:${left}%; width:${right-left}%"
+                   title="${escape(t.title)} · ${escape(t.status)}">
+                ${escape(t.assigned_role || '')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      root.innerHTML = html;
+      $$$('.gantt-bar', root).forEach(b => b.addEventListener('click', () => openTask(parseInt(b.dataset.id))));
+    }
+
+    // ---- Calendar view ----
+    function renderCalendar() {
+      if (!state.calMonth) state.calMonth = new Date();
+      const m = state.calMonth;
+      $('cal-month').textContent = m.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+      const first = new Date(m.getFullYear(), m.getMonth(), 1);
+      const startWeekday = first.getDay();
+      const daysInMonth = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      const today = new Date(); today.setHours(0,0,0,0);
+
+      // Group tasks by yyyy-mm-dd of due_date
+      const byDay = {};
+      for (const t of state.tasks) {
+        if (!t.due_date) continue;
+        const d = new Date(t.due_date);
+        const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        (byDay[key] = byDay[key] || []).push(t);
+      }
+
+      const grid = $('cal-grid');
+      grid.innerHTML = '';
+      ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'cal-day-name';
+        el.textContent = d;
+        grid.appendChild(el);
+      });
+      // Leading blanks (previous month)
+      const prevDays = startWeekday;
+      const prevMonthLast = new Date(m.getFullYear(), m.getMonth(), 0).getDate();
+      for (let i = prevDays - 1; i >= 0; i--) {
+        const dnum = prevMonthLast - i;
+        grid.appendChild(makeCalDay(new Date(m.getFullYear(), m.getMonth() - 1, dnum), byDay, today, true));
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        grid.appendChild(makeCalDay(new Date(m.getFullYear(), m.getMonth(), d), byDay, today, false));
+      }
+      // Trailing days
+      const total = prevDays + daysInMonth;
+      const trailing = (7 - (total % 7)) % 7;
+      for (let d = 1; d <= trailing; d++) {
+        grid.appendChild(makeCalDay(new Date(m.getFullYear(), m.getMonth() + 1, d), byDay, today, true));
+      }
+    }
+
+    function makeCalDay(date, byDay, today, otherMonth) {
+      const el = document.createElement('div');
+      el.className = 'cal-day' + (otherMonth ? ' other-month' : '') + (date.getTime() === today.getTime() ? ' today' : '');
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      const tasks = byDay[key] || [];
+      const num = document.createElement('div');
+      num.className = 'cal-num'; num.textContent = date.getDate();
+      el.appendChild(num);
+      tasks.slice(0, 3).forEach(t => {
+        const tEl = document.createElement('div');
+        tEl.className = 'cal-task' + (dueClass(t) === 'overdue' ? ' overdue' : '');
+        tEl.dataset.role = t.assigned_role || '';
+        tEl.title = t.title;
+        tEl.textContent = t.title;
+        tEl.addEventListener('click', () => openTask(t.id));
+        el.appendChild(tEl);
+      });
+      if (tasks.length > 3) {
+        const more = document.createElement('div');
+        more.className = 'cal-more';
+        more.textContent = `+${tasks.length - 3} more`;
+        el.appendChild(more);
+      }
+      return el;
+    }
+
+    $('cal-prev').addEventListener('click', () => {
+      state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() - 1, 1);
+      renderCalendar();
+    });
+    $('cal-next').addEventListener('click', () => {
+      state.calMonth = new Date(state.calMonth.getFullYear(), state.calMonth.getMonth() + 1, 1);
+      renderCalendar();
+    });
+
+    // ---- Agents view (full management) ----
+    function renderAgentsView() {
+      const grid = $('agents-stat-grid');
+      grid.innerHTML = state.agents.map(a => `
+        <div class="stat-card ${a.tier === 'executive' ? 'purple' : a.tier === 'lead' ? 'accent' : 'green'}">
+          <div class="label">${escape(a.role)}</div>
+          <div class="value">${escape(a.name)}</div>
+          <div class="sub">${a.open_tasks || 0} open · ${a.done_tasks || 0} done · ${a.status || 'offline'}</div>
+        </div>
+      `).join('');
+      $('agents-detail-list').innerHTML = state.agents.map(a => `
+        <div class="cc-panel" data-name="${escape(a.name)}" style="cursor:pointer;">
+          <h4>${escape(a.name)} — ${escape(a.role)}
+            <span class="badge">${escape(a.tier || 'team')}</span>
+            <span class="badge" style="background:${a.status==='busy'?'var(--orange-dim)':'var(--bg-elev-2)'}; color:${a.status==='busy'?'var(--orange)':'var(--fg-dim)'}">${escape(a.status || 'offline')}</span>
+          </h4>
+          <div style="display:flex; gap:1.2rem; flex-wrap:wrap; font-size:0.78rem; color:var(--fg-dim); font-family:'JetBrains Mono',monospace;">
+            <span>open: <strong style="color:var(--fg)">${a.open_tasks || 0}</strong></span>
+            <span>done: <strong style="color:var(--green)">${a.done_tasks || 0}</strong></span>
+            <span>total: <strong style="color:var(--fg)">${a.total_tasks || 0}</strong></span>
+            <span>last seen: <strong style="color:var(--fg)">${escape(a.last_seen_at ? fmt(a.last_seen_at) : 'never')}</strong></span>
+          </div>
+          ${a.current_task_title ? `<div style="margin-top:0.5rem; font-size:0.78rem; color:var(--accent)">↳ working on: ${escape(a.current_task_title)}</div>` : ''}
+          <div style="margin-top:0.85rem; display:flex; gap:0.5rem;">
+            <button class="status-btn" onclick="event.stopPropagation(); openAgentChat('${escape(a.name)}')">💬 Chat</button>
+            <button class="status-btn" onclick="event.stopPropagation(); editAgentPrompt('${escape(a.name)}')">⚙ Edit persona</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // ---- Command Center ----
+    function renderCommandCenter() {
+      const counts = {};
+      for (const t of state.tasks) counts[t.status] = (counts[t.status] || 0) + 1;
+      const overdue = state.tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done' && t.status !== 'failed').length;
+      const unassigned = state.tasks.filter(t => (!t.assignees || t.assignees.length === 0) && t.status !== 'done' && t.status !== 'failed').length;
+      const busy = state.agents.filter(a => a.status === 'busy').length;
+      const grid = $('cc-stat-grid');
+      grid.innerHTML = `
+        <div class="stat-card accent"><div class="label">Total tasks</div><div class="value">${state.tasks.length}</div><div class="sub">across all 5 columns</div></div>
+        <div class="stat-card green"><div class="label">Done</div><div class="value">${counts.done || 0}</div><div class="sub">completed</div></div>
+        <div class="stat-card accent"><div class="label">In progress</div><div class="value">${counts.in_progress || 0}</div><div class="sub">${busy} agent${busy===1?'':'s'} working now</div></div>
+        <div class="stat-card warn"><div class="label">In review</div><div class="value">${counts.review || 0}</div><div class="sub">awaiting human signoff</div></div>
+        <div class="stat-card error"><div class="label">Overdue</div><div class="value">${overdue}</div><div class="sub">past due, not done</div></div>
+        <div class="stat-card error"><div class="label">Unassigned</div><div class="value">${unassigned}</div><div class="sub">need an owner</div></div>
+      `;
+      // Activity feed (in-memory log of state deltas)
+      $('cc-activity').innerHTML = state.activity.length === 0
+        ? '<div class="empty-state">waiting for live updates…</div>'
+        : state.activity.slice(0, 30).map(a => `
+          <div class="activity-row">
+            <span class="ts">${escape(a.ts)}</span>
+            <span class="body">${a.html}</span>
+          </div>
+        `).join('');
+      // Infrastructure
+      $('cc-infra').innerHTML = `
+        ${[
+          ['hermes-dashboard', 'Flask · Postgres · nginx · SSE', 'green'],
+          ['hermes-ollama', 'Ollama runtime · hermes3:3b loaded', 'green'],
+          ['hermes-agent-pm', 'Project manager worker', 'green'],
+          ['hermes-agent-coder', 'Software engineer worker', 'green'],
+          ['hermes-agent-researcher', 'Hardware researcher worker', 'green'],
+          ['hermes-agent-writer', 'Technical writer worker', 'green'],
+        ].map(([n, d, c]) => `
+          <div style="display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.7rem; background:var(--bg-card); border:1px solid var(--border); border-radius:8px;">
+            <span style="width:8px; height:8px; border-radius:50%; background:var(--${c}); box-shadow:0 0 8px var(--${c});"></span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--fg);">${n}</span>
+            <span style="font-size:0.72rem; color:var(--fg-faint); margin-left:auto;">${d}</span>
+          </div>
+        `).join('')}
+        <div style="font-size:0.7rem; color:var(--fg-faint); margin-top:0.4rem; font-family:'JetBrains Mono',monospace; padding:0.4rem;">
+          all 6 containers run on a single Openmesh Xnode<br>
+          <span style="color:var(--accent)">8 vCPU · 16GB RAM · 320GB SSD</span>
+        </div>
+      `;
+    }
+
+    function logActivity(html) {
+      const ts = new Date().toLocaleTimeString();
+      state.activity.unshift({ ts, html });
+      if (state.activity.length > 100) state.activity.pop();
+    }
+
+    // ---- Analytics & Advanced (shared insights load) ----
+    let lastInsights = null;
+    async function loadInsightsAndRender() {
+      try {
+        lastInsights = await api('/insights/algorithmic');
+        renderAnalytics(lastInsights);
+        renderAdvanced(lastInsights);
+      } catch (e) {
+        console.error('insights load failed', e);
+      }
+    }
+
+    function renderAnalytics(d) {
+      const total = Object.values(d.by_status).reduce((a,b)=>a+b, 0);
+      const done = d.by_status.done || 0;
+      const completion = total ? Math.round((done/total)*100) : 0;
+      $('an-stat-grid').innerHTML = `
+        <div class="stat-card accent"><div class="label">Total tasks</div><div class="value">${total}</div></div>
+        <div class="stat-card green"><div class="label">Completion</div><div class="value">${completion}%</div></div>
+        <div class="stat-card accent"><div class="label">Avg lead time</div><div class="value">${Math.round((d.avg_lead_seconds||0)/3600)}h</div><div class="sub">created → done</div></div>
+        <div class="stat-card purple"><div class="label">Avg cycle time</div><div class="value">${Math.round((d.avg_cycle_seconds||0)/3600)}h</div><div class="sub">started → done</div></div>
+      `;
+      const maxStatus = Math.max(...Object.values(d.by_status), 1);
+      $('an-status-bars').innerHTML = ['backlog','todo','in_progress','review','done'].map(s => {
+        const v = d.by_status[s] || 0;
+        return `
+          <div class="bar-row">
+            <div class="bar-label">${s.replace('_',' ')}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(v/maxStatus)*100}%"></div></div>
+            <div class="bar-value">${v}</div>
+          </div>
+        `;
+      }).join('');
+      const maxRole = Math.max(...Object.values(d.by_role), 1);
+      $('an-agent-bars').innerHTML = Object.entries(d.by_role).map(([role, v]) => `
+        <div class="bar-row">
+          <div class="bar-label">${role}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(v/maxRole)*100}%"></div></div>
+          <div class="bar-value">${v}</div>
+        </div>
+      `).join('');
+      const days = d.velocity_14d || [];
+      const maxV = Math.max(...days.map(x => x.done), 1);
+      $('an-velocity').innerHTML = days.length === 0
+        ? '<div class="empty-state">no completed tasks in the last 14 days</div>'
+        : days.map(x => `
+          <div class="bar-row">
+            <div class="bar-label">${x.day.slice(5)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(x.done/maxV)*100}%; background:linear-gradient(90deg, var(--green), #86efac);"></div></div>
+            <div class="bar-value">${x.done}</div>
+          </div>
+        `).join('');
+    }
+
+    function renderAdvanced(d) {
+      const total = Object.values(d.by_status).reduce((a,b)=>a+b, 0);
+      const blocked = d.by_status.review || 0;
+      const wipRatio = total ? Math.round(((d.by_status.in_progress || 0) / total) * 100) : 0;
+      $('adv-stat-grid').innerHTML = `
+        <div class="stat-card error"><div class="label">Overdue</div><div class="value">${d.overdue_count}</div><div class="sub">past due, not done</div></div>
+        <div class="stat-card warn"><div class="label">No due date</div><div class="value">${d.no_due_date_count}</div><div class="sub">need scheduling</div></div>
+        <div class="stat-card error"><div class="label">Unassigned</div><div class="value">${d.unassigned_count}</div><div class="sub">need an owner</div></div>
+        <div class="stat-card accent"><div class="label">WIP ratio</div><div class="value">${wipRatio}%</div><div class="sub">in progress / total</div></div>
+        <div class="stat-card warn"><div class="label">Blocked at review</div><div class="value">${blocked}</div><div class="sub">awaiting signoff</div></div>
+        <div class="stat-card green"><div class="label">14-day velocity</div><div class="value">${(d.velocity_14d||[]).reduce((a,x)=>a+x.done,0)}</div><div class="sub">tasks completed</div></div>
+      `;
+      $('adv-overdue').innerHTML = (d.overdue_tasks || []).length === 0
+        ? '<tr><td colspan="4" class="empty-state">no overdue tasks 🎉</td></tr>'
+        : d.overdue_tasks.map(t => {
+          const d2 = new Date(t.due_date);
+          const days = Math.round((new Date() - d2) / 86400000);
+          return `
+            <tr data-id="${t.id}" style="cursor:pointer;">
+              <td>${escape(t.title)}</td>
+              <td><span class="role-pill ${t.assigned_role}" style="font-size:0.62rem; padding:0.13rem 0.45rem; border-radius:999px;">${escape(t.assigned_role)}</span></td>
+              <td><span style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-dim)">${escape(t.status)}</span></td>
+              <td style="color:var(--error); font-family:'JetBrains Mono',monospace; font-size:0.72rem">${days}d overdue</td>
+            </tr>
+          `;
+        }).join('');
+      $$$('tr', $('adv-overdue')).forEach(tr => {
+        if (tr.dataset.id) tr.addEventListener('click', () => openTask(parseInt(tr.dataset.id)));
+      });
+      // Per-agent throughput
+      const max = Math.max(...d.per_agent_load.map(x => x.done + x.open), 1);
+      $('adv-agent-throughput').innerHTML = d.per_agent_load.map(p => `
+        <div class="bar-row">
+          <div class="bar-label">${p.assigned_role}</div>
+          <div class="bar-track" style="display:flex; padding:0;">
+            <div style="background:var(--green); height:100%; width:${(p.done/max)*100}%;"></div>
+            <div style="background:var(--accent); height:100%; width:${(p.open/max)*100}%;"></div>
+          </div>
+          <div class="bar-value">${p.done}/${p.open + p.done}</div>
+        </div>
+      `).join('') + `
+        <div style="font-size:0.7rem; color:var(--fg-faint); margin-top:0.5rem; font-family:'JetBrains Mono',monospace;">
+          <span style="color:var(--green)">■</span> done   <span style="color:var(--accent)">■</span> open
+        </div>
+      `;
+    }
+
+    // ---- AI Insights ----
+    $('ai-generate').addEventListener('click', async () => {
+      const out = $('ai-output');
+      out.classList.remove('empty');
+      out.textContent = '';
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      out.appendChild(cursor);
+      let buf = '';
+      try {
+        const r = await fetch('/api/insights/ai/stream', { method: 'POST' });
+        if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
+        const reader = r.body.getReader();
+        const dec = new TextDecoder();
+        let raw = '';
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          raw += dec.decode(value, { stream: true });
+          let idx;
+          while ((idx = raw.indexOf('\n\n')) !== -1) {
+            const block = raw.slice(0, idx);
+            raw = raw.slice(idx + 2);
+            let event = 'message', data = '';
+            for (const line of block.split('\n')) {
+              if (line.startsWith('event: ')) event = line.slice(7);
+              else if (line.startsWith('data: ')) data += (data ? '\n' : '') + line.slice(6);
+            }
+            if (event === 'token') {
+              buf += data.replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+              out.textContent = buf;
+              out.appendChild(cursor);
+            } else if (event === 'error') {
+              out.textContent = 'Error: ' + data;
+            } else if (event === 'done') {
+              cursor.remove();
+            }
+          }
+        }
+      } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+      }
+    });
+
+    // ---- Chat-with-agent ----
     function openAgentChat(name) {
       const agent = state.agents.find(a => a.name === name);
       if (!agent) return;
-      currentChatAgent = agent;
+      state.currentChatAgent = agent;
       $('agent-chat-title').textContent = `Chat with ${agent.name}`;
-      $('agent-chat-meta').textContent = `${agent.role} · ${agent.status || 'offline'}`;
+      $('agent-chat-meta').textContent = `${agent.role} · ${agent.status || 'offline'} · click ⚙ to edit persona`;
       $('agent-chat-thread').innerHTML = `
         <div style="color:var(--fg-faint); font-size:0.85rem; text-align:center; padding:1rem;">
-          start chatting with ${escape(agent.name)} — they respond live as your team member
+          start chatting with ${escape(agent.name)} — they respond live as your team member, streamed from hermes3:3b
         </div>`;
       $('agent-chat-input').value = '';
       $('agent-chat-modal').classList.add('open');
@@ -1074,71 +2152,70 @@
         border: 1px solid var(--border);
         border-left: 3px solid ${isUser ? 'var(--fg-dim)' : 'var(--accent)'};
         border-radius: 8px;
-        padding: 0.75rem 0.9rem;
-        font-size: 0.9rem;
+        padding: 0.65rem 0.85rem;
+        font-size: 0.88rem;
         line-height: 1.55;
         align-self: ${isUser ? 'flex-end' : 'flex-start'};
-        max-width: 88%;
+        max-width: 90%;
       `;
-      div.innerHTML = `<div style="font-size:0.7rem; color:var(--fg-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.3rem;">${isUser ? 'you' : escape(currentChatAgent.name)}</div><div class="chat-body">${escape(text)}</div>`;
+      div.innerHTML = `<div style="font-size:0.66rem; color:var(--fg-faint); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem;">${isUser ? 'you' : escape(state.currentChatAgent.name)}</div><div class="chat-body">${escape(text)}</div>`;
       $('agent-chat-thread').appendChild(div);
       div.scrollIntoView({ behavior: 'smooth', block: 'end' });
       return div.querySelector('.chat-body');
     }
 
     async function sendChatToAgent(message) {
-      if (!currentChatAgent) return;
-      // Clear placeholder if present
+      if (!state.currentChatAgent) return;
+      const agentName = state.currentChatAgent.name;
       const thread = $('agent-chat-thread');
-      if (thread.children.length === 1 && thread.children[0].style.textAlign === 'center') {
-        thread.innerHTML = '';
-      }
+      if (thread.children.length === 1 && thread.children[0].style.textAlign === 'center') thread.innerHTML = '';
       appendChatMsg('user', message);
       const bodyEl = appendChatMsg('agent', '');
-      bodyEl.innerHTML = '<span style="opacity:0.5;">…</span>';
-
+      bodyEl.innerHTML = '<span class="live-dots" style="color:var(--accent-bright)">thinking</span>';
+      // Mark agent as streaming so the strip + chat header reflect it instantly
+      state.streamingAgents.add(agentName);
+      $('agent-chat-meta').innerHTML = `${escape(state.currentChatAgent.role)} · <span class="live-dots" style="color:var(--accent-bright)">thinking via hermes3:3b</span>`;
+      renderAgents();
       try {
-        const r = await fetch(`/api/agents/${encodeURIComponent(currentChatAgent.name)}/chat/stream`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const r = await fetch(`/api/agents/${encodeURIComponent(state.currentChatAgent.name)}/chat/stream`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message }),
         });
         if (!r.ok || !r.body) throw new Error(`HTTP ${r.status}`);
-
         const reader = r.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = '';
-        let accumulated = '';
-        let firstToken = true;
-
+        const dec = new TextDecoder();
+        let buf = '', acc = '', first = true;
         while (true) {
           const { value, done } = await reader.read();
           if (done) break;
-          buf += decoder.decode(value, { stream: true });
-
+          buf += dec.decode(value, { stream: true });
           let idx;
           while ((idx = buf.indexOf('\n\n')) !== -1) {
             const raw = buf.slice(0, idx);
             buf = buf.slice(idx + 2);
-            let event = 'message';
-            let data = '';
+            let event = 'message', data = '';
             for (const line of raw.split('\n')) {
               if (line.startsWith('event: ')) event = line.slice(7);
               else if (line.startsWith('data: ')) data += (data ? '\n' : '') + line.slice(6);
             }
             if (event === 'token') {
-              if (firstToken) { bodyEl.textContent = ''; firstToken = false; }
-              accumulated += data.replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
-              bodyEl.textContent = accumulated;
+              if (first) { bodyEl.textContent = ''; first = false; }
+              acc += data.replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+              bodyEl.textContent = acc;
               bodyEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
             } else if (event === 'error') {
-              try { const err = JSON.parse(data); bodyEl.innerHTML = `<span style="color:var(--error);">Error: ${escape(err.error)}</span>`; }
-              catch (e) { bodyEl.innerHTML = `<span style="color:var(--error);">Error: ${escape(data)}</span>`; }
+              bodyEl.innerHTML = `<span style="color:var(--error);">Error: ${escape(data)}</span>`;
             }
           }
         }
       } catch (e) {
         bodyEl.innerHTML = `<span style="color:var(--error);">Network error: ${escape(e.message)}</span>`;
+      } finally {
+        state.streamingAgents.delete(agentName);
+        if (state.currentChatAgent && state.currentChatAgent.name === agentName) {
+          $('agent-chat-meta').textContent = `${state.currentChatAgent.role} · ${state.currentChatAgent.status || 'idle'} · click ⚙ to edit persona`;
+        }
+        renderAgents();
       }
     }
 
@@ -1154,17 +2231,83 @@
       if (e.target.id === 'agent-chat-modal') $('agent-chat-modal').classList.remove('open');
     });
 
+    // ---- Agent prompt editor ----
+    $('agent-prompt-btn').addEventListener('click', () => {
+      if (!state.currentChatAgent) return;
+      $('agent-chat-modal').classList.remove('open');
+      editAgentPrompt(state.currentChatAgent.name);
+    });
+
+    async function editAgentPrompt(name) {
+      try {
+        const agent = await api(`/agents/${encodeURIComponent(name)}`);
+        $('agent-prompt-meta').textContent = `${agent.name} · ${agent.tier || 'team'} · changes apply on next polling cycle`;
+        $('agent-prompt-role').value = agent.role || '';
+        $('agent-prompt-text').value = agent.system_prompt || '';
+        $('agent-prompt-modal').dataset.name = name;
+        $('agent-prompt-modal').classList.add('open');
+      } catch (e) {
+        alert('Could not load agent: ' + e.message);
+      }
+    }
+    window.editAgentPrompt = editAgentPrompt; // for inline onclick
+
+    $('agent-prompt-cancel').addEventListener('click', () => $('agent-prompt-modal').classList.remove('open'));
+    $('agent-prompt-modal').addEventListener('click', e => {
+      if (e.target.id === 'agent-prompt-modal') $('agent-prompt-modal').classList.remove('open');
+    });
+    $('agent-prompt-save').addEventListener('click', async () => {
+      const name = $('agent-prompt-modal').dataset.name;
+      try {
+        await api(`/agents/${encodeURIComponent(name)}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            role: $('agent-prompt-role').value,
+            system_prompt: $('agent-prompt-text').value,
+          }),
+        });
+        $('agent-prompt-modal').classList.remove('open');
+        loadAgents();
+      } catch (e) {
+        alert('Save failed: ' + e.message);
+      }
+    });
+
     // ---- Live updates via SSE ----
     function startEventStream() {
       const es = new EventSource('/api/events');
-      es.addEventListener('state', () => {
+      const led = $('sse-led');
+      es.addEventListener('open', () => { if (led) led.className = 'led'; });
+      es.addEventListener('state', (msg) => {
+        if (led) led.className = 'led';
+        try {
+          const data = JSON.parse(msg.data);
+          // Diff against last summary, log activity
+          if (state.lastSummary) {
+            const oldC = state.lastSummary.counts || {};
+            const newC = data.counts || {};
+            const keys = new Set([...Object.keys(oldC), ...Object.keys(newC)]);
+            for (const k of keys) {
+              if ((oldC[k] || 0) !== (newC[k] || 0)) {
+                const delta = (newC[k] || 0) - (oldC[k] || 0);
+                logActivity(`<strong>${k}</strong> ${delta > 0 ? '+' : ''}${delta} → ${newC[k] || 0}`);
+              }
+            }
+            // Agents that changed state
+            const oldAg = Object.fromEntries((state.lastSummary.agents||[]).map(a => [a.name, a]));
+            for (const a of (data.agents || [])) {
+              const old = oldAg[a.name];
+              if (old && old.status !== a.status) {
+                logActivity(`agent <strong>${a.name}</strong> → ${a.status}`);
+              }
+            }
+          }
+          state.lastSummary = data;
+        } catch (e) { /* ignore */ }
         loadAgents();
         loadTasks();
-        loadHealth();
       });
-      es.addEventListener('error', () => {
-        // browser will auto-reconnect
-      });
+      es.addEventListener('error', () => { if (led) led.className = 'led warn'; });
     }
 
     // ---- Boot ----
@@ -1173,11 +2316,9 @@
         await loadProjects();
         await loadAgents();
         await loadTasks();
-        await loadHealth();
         startEventStream();
       } catch (e) {
         console.error(e);
-        $('health').textContent = 'error: ' + e.message;
       }
     })();
   </script>

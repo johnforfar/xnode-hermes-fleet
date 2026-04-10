@@ -219,7 +219,10 @@ def ensure_schema() -> None:
                 error             TEXT,
                 created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 started_at        TIMESTAMPTZ,
-                completed_at      TIMESTAMPTZ
+                completed_at      TIMESTAMPTZ,
+                -- v1.4: human scheduling fields
+                due_date          TIMESTAMPTZ,
+                assignees         TEXT[] NOT NULL DEFAULT '{}'
             )
             """
         )
@@ -240,6 +243,8 @@ def ensure_schema() -> None:
         # Add tier/reports_to columns if upgrading from an older schema
         cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'team'")
         cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS reports_to TEXT")
+        cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ")
+        cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignees TEXT[] NOT NULL DEFAULT '{}'")
         conn.commit()
     log("schema ensured")
 
@@ -253,9 +258,10 @@ def seed_agents() -> None:
                 VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (name) DO UPDATE
                 SET role = EXCLUDED.role,
-                    system_prompt = EXCLUDED.system_prompt,
                     tier = EXCLUDED.tier,
                     reports_to = EXCLUDED.reports_to
+                    -- NOTE: system_prompt is NOT updated on redeploy so
+                    -- user-edited personas survive across deploys.
                 """,
                 (
                     agent["name"],
@@ -460,13 +466,33 @@ def seed_demo_project() -> None:
             ),
         )
         project_id = cur.fetchone()[0]
-        for role, title, description, status in LAUNCH_TASKS:
+        # Stagger due dates across the next ~70 days so the calendar
+        # and gantt views have something interesting to render. The
+        # offset is per-task, not per-status, so each agent gets a
+        # mix of near-term and farther-out work.
+        from datetime import timedelta
+        base = datetime.utcnow()
+        for i, (role, title, description, status) in enumerate(LAUNCH_TASKS):
+            # Earlier statuses (done/review) get past or near dates;
+            # backlog gets pushed out further.
+            if status == "done":
+                offset = -7 - (i % 14)
+            elif status == "review":
+                offset = -1 - (i % 5)
+            elif status == "in_progress":
+                offset = 2 + (i % 5)
+            elif status == "todo":
+                offset = 5 + (i % 21)
+            else:  # backlog
+                offset = 25 + (i % 45)
+            due = base + timedelta(days=offset)
             cur.execute(
                 """
-                INSERT INTO tasks (project_id, title, description, assigned_role, status)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO tasks (project_id, title, description, assigned_role,
+                                   status, due_date, assignees)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
-                (project_id, title, description, role, status),
+                (project_id, title, description, role, status, due, [role]),
             )
         conn.commit()
     log(f"seeded Own1 project + {len(LAUNCH_TASKS)} launch-plan tasks")
@@ -574,6 +600,7 @@ def list_tasks():
         SELECT t.id, t.project_id, t.title, t.description, t.status,
                t.assigned_role, t.assigned_agent_id, t.output, t.error,
                t.created_at, t.started_at, t.completed_at,
+               t.due_date, t.assignees,
                a.name AS assigned_agent_name
         FROM tasks t
         LEFT JOIN agents a ON a.id = t.assigned_agent_id
@@ -595,7 +622,7 @@ def list_tasks():
         cur.execute(sql, params)
         rows = cur.fetchall()
     for r in rows:
-        for ts_field in ("created_at", "started_at", "completed_at"):
+        for ts_field in ("created_at", "started_at", "completed_at", "due_date"):
             if r.get(ts_field):
                 r[ts_field] = r[ts_field].isoformat()
     return jsonify(rows)
@@ -648,7 +675,7 @@ def get_task(task_id):
         task = cur.fetchone()
         if not task:
             return jsonify({"error": "not found"}), 404
-        for ts_field in ("created_at", "started_at", "completed_at"):
+        for ts_field in ("created_at", "started_at", "completed_at", "due_date"):
             if task.get(ts_field):
                 task[ts_field] = task[ts_field].isoformat()
         cur.execute(
@@ -676,6 +703,103 @@ def move_task(task_id):
         )
         conn.commit()
     return jsonify({"id": task_id, "status": new_status})
+
+
+@app.route("/api/tasks/<int:task_id>/update", methods=["POST"])
+def update_task(task_id):
+    """Partial update — only the fields present in the body are written.
+
+    Accepts: title, description, due_date (ISO 8601 string or null),
+    assignees (list of agent name strings), assigned_role (single role,
+    kept in sync with the first assignee for the polling worker).
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    sets = []
+    params: list = []
+    if "title" in data:
+        sets.append("title = %s")
+        params.append((data["title"] or "").strip()[:300])
+    if "description" in data:
+        sets.append("description = %s")
+        params.append((data["description"] or "").strip())
+    if "due_date" in data:
+        sets.append("due_date = %s")
+        v = data["due_date"]
+        params.append(v if v else None)
+    if "assignees" in data:
+        a = data["assignees"] or []
+        if not isinstance(a, list):
+            return jsonify({"error": "assignees must be a list"}), 400
+        a = [str(x).strip() for x in a if str(x).strip()]
+        sets.append("assignees = %s")
+        params.append(a)
+        # Keep assigned_role in sync with the first assignee so the
+        # polling worker still claims the task.
+        if a:
+            sets.append("assigned_role = %s")
+            params.append(a[0])
+    if "assigned_role" in data and "assignees" not in data:
+        sets.append("assigned_role = %s")
+        params.append(data["assigned_role"])
+    if not sets:
+        return jsonify({"error": "no updatable fields provided"}), 400
+    params.append(task_id)
+    sql = f"UPDATE tasks SET {', '.join(sets)} WHERE id = %s"
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute(sql, params)
+        conn.commit()
+    return jsonify({"id": task_id, "updated": True})
+
+
+@app.route("/api/agents/<name>", methods=["GET"])
+def get_agent(name):
+    with db_connect_dict() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, name, role, tier, reports_to, system_prompt, status FROM agents WHERE name = %s",
+            (name,),
+        )
+        agent = cur.fetchone()
+    if not agent:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(agent)
+
+
+@app.route("/api/agents/<name>", methods=["POST"])
+def update_agent(name):
+    """Edit an agent's persona — system prompt, role label, or tier.
+
+    The next polling cycle of the worker container will pick up the
+    new system prompt automatically (it re-reads on each task claim).
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    sets = []
+    params: list = []
+    if "system_prompt" in data:
+        sp = (data["system_prompt"] or "").strip()
+        if not sp:
+            return jsonify({"error": "system_prompt cannot be empty"}), 400
+        sets.append("system_prompt = %s")
+        params.append(sp)
+    if "role" in data:
+        sets.append("role = %s")
+        params.append((data["role"] or "").strip()[:120])
+    if "tier" in data:
+        if data["tier"] not in ("executive", "lead", "team"):
+            return jsonify({"error": "tier must be executive|lead|team"}), 400
+        sets.append("tier = %s")
+        params.append(data["tier"])
+    if "reports_to" in data:
+        sets.append("reports_to = %s")
+        params.append(data["reports_to"] or None)
+    if not sets:
+        return jsonify({"error": "no updatable fields"}), 400
+    params.append(name)
+    with db_connect() as conn, conn.cursor() as cur:
+        cur.execute(f"UPDATE agents SET {', '.join(sets)} WHERE name = %s", params)
+        if cur.rowcount == 0:
+            return jsonify({"error": "agent not found"}), 404
+        conn.commit()
+    return jsonify({"name": name, "updated": True})
 
 
 @app.route("/api/agents/<name>/chat/stream", methods=["POST"])
@@ -764,6 +888,208 @@ def chat_with_agent(name):
 
     return Response(
         stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.route("/api/insights/algorithmic")
+def insights_algo():
+    """Pure algorithmic metrics for the Advanced Insights tab.
+
+    Computes everything from the tasks + agents tables — no LLM call.
+    Returns a JSON dict the frontend can render directly into cards/charts.
+    """
+    with db_connect_dict() as conn, conn.cursor() as cur:
+        cur.execute("SELECT status, COUNT(*) FROM tasks GROUP BY status")
+        by_status = {r["status"]: r["count"] for r in cur.fetchall()}
+
+        cur.execute("SELECT assigned_role, COUNT(*) FROM tasks GROUP BY assigned_role")
+        by_role = {r["assigned_role"]: r["count"] for r in cur.fetchall()}
+
+        cur.execute(
+            """
+            SELECT assigned_role,
+                   COUNT(*) FILTER (WHERE status = 'done') AS done,
+                   COUNT(*) FILTER (WHERE status IN ('todo','in_progress','review')) AS open
+            FROM tasks GROUP BY assigned_role
+            """
+        )
+        per_agent_load = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT EXTRACT(EPOCH FROM AVG(completed_at - started_at)) AS avg_seconds
+            FROM tasks WHERE completed_at IS NOT NULL AND started_at IS NOT NULL
+            """
+        )
+        row = cur.fetchone()
+        avg_cycle_seconds = float(row["avg_seconds"] or 0)
+
+        cur.execute(
+            """
+            SELECT EXTRACT(EPOCH FROM AVG(completed_at - created_at)) AS avg_seconds
+            FROM tasks WHERE completed_at IS NOT NULL
+            """
+        )
+        row = cur.fetchone()
+        avg_lead_seconds = float(row["avg_seconds"] or 0)
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS overdue FROM tasks
+            WHERE due_date < NOW() AND status NOT IN ('done','failed')
+            """
+        )
+        overdue = cur.fetchone()["overdue"]
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS unassigned FROM tasks
+            WHERE (assignees IS NULL OR cardinality(assignees) = 0)
+              AND status NOT IN ('done','failed')
+            """
+        )
+        unassigned = cur.fetchone()["unassigned"]
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS no_due FROM tasks
+            WHERE due_date IS NULL AND status NOT IN ('done','failed')
+            """
+        )
+        no_due = cur.fetchone()["no_due"]
+
+        cur.execute(
+            """
+            SELECT date_trunc('day', completed_at) AS day, COUNT(*) AS done
+            FROM tasks
+            WHERE completed_at IS NOT NULL
+              AND completed_at > NOW() - INTERVAL '14 days'
+            GROUP BY day ORDER BY day
+            """
+        )
+        velocity = [
+            {"day": r["day"].isoformat()[:10], "done": r["done"]}
+            for r in cur.fetchall()
+        ]
+
+        cur.execute(
+            """
+            SELECT id, title, due_date, assigned_role, status FROM tasks
+            WHERE due_date < NOW() AND status NOT IN ('done','failed')
+            ORDER BY due_date ASC LIMIT 20
+            """
+        )
+        overdue_tasks = []
+        for r in cur.fetchall():
+            r["due_date"] = r["due_date"].isoformat() if r.get("due_date") else None
+            overdue_tasks.append(r)
+
+    return jsonify(
+        {
+            "by_status": by_status,
+            "by_role": by_role,
+            "per_agent_load": per_agent_load,
+            "avg_cycle_seconds": avg_cycle_seconds,
+            "avg_lead_seconds": avg_lead_seconds,
+            "overdue_count": overdue,
+            "unassigned_count": unassigned,
+            "no_due_date_count": no_due,
+            "velocity_14d": velocity,
+            "overdue_tasks": overdue_tasks,
+        }
+    )
+
+
+@app.route("/api/insights/ai/stream", methods=["POST"])
+def insights_ai():
+    """LLM commentary on the current board state.
+
+    Builds a structured context block from the algorithmic insights
+    (so we don't need RAG — the full dataset summary fits trivially in
+    one prompt) and streams hermes3:3b's analysis back via SSE.
+    """
+    # Re-use the algo insights to build a context block
+    with app.test_request_context("/api/insights/algorithmic"):
+        algo = insights_algo().get_json()
+
+    ctx_lines = [
+        "Current Hermes Fleet Board State:",
+        f"- total tasks: {sum(algo['by_status'].values())}",
+        "- by status: " + ", ".join(f"{k}={v}" for k, v in algo["by_status"].items()),
+        "- by agent: " + ", ".join(f"{k}={v}" for k, v in algo["by_role"].items()),
+        f"- overdue tasks (past due, not done): {algo['overdue_count']}",
+        f"- tasks with no due date: {algo['no_due_date_count']}",
+        f"- tasks with no assignee: {algo['unassigned_count']}",
+        f"- avg lead time (created→done): {int(algo['avg_lead_seconds'] / 3600)} hours",
+        f"- velocity (last 14 days): {sum(d['done'] for d in algo['velocity_14d'])} tasks completed",
+    ]
+    if algo["overdue_tasks"]:
+        ctx_lines.append("- top overdue tasks:")
+        for t in algo["overdue_tasks"][:5]:
+            ctx_lines.append(f"    * #{t['id']} [{t['assigned_role']}] {t['title']}")
+
+    context = "\n".join(ctx_lines)
+    prompt = (
+        "You are an experienced engineering chief of staff analyzing a "
+        "multi-agent project board for the OpenxAI hardware launch. "
+        "Read the state below and produce a SHORT executive briefing "
+        "(under 200 words) covering: (1) what's going well, (2) the top "
+        "3 risks or bottlenecks, (3) one concrete recommendation. Be "
+        "direct, no fluff.\n\n"
+        f"{context}\n\nYOUR BRIEFING:"
+    )
+
+    def open_stream():
+        last_err = None
+        for url in OLLAMA_URLS:
+            try:
+                r = http.post(
+                    f"{url}/api/generate",
+                    json={
+                        "model": CHAT_MODEL,
+                        "prompt": prompt,
+                        "stream": True,
+                        "options": {"temperature": 0.4, "num_predict": 400},
+                    },
+                    stream=True,
+                    timeout=600,
+                )
+                r.raise_for_status()
+                return r
+            except Exception as e:
+                last_err = e
+                continue
+        raise last_err or RuntimeError("ollama unreachable")
+
+    def gen():
+        try:
+            yield f"event: context\ndata: {json.dumps({'lines': len(ctx_lines)})}\n\n"
+            with open_stream() as r:
+                for line in r.iter_lines(decode_unicode=True):
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    tok = obj.get("response", "")
+                    if tok:
+                        safe = tok.replace("\\", "\\\\").replace("\n", "\\n")
+                        yield f"event: token\ndata: {safe}\n\n"
+                    if obj.get("done"):
+                        yield "event: done\ndata: {}\n\n"
+                        return
+        except Exception as e:
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    return Response(
+        stream_with_context(gen()),
         mimetype="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
