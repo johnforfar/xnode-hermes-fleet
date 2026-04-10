@@ -1,0 +1,19 @@
+result
+result-*
+.direnv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Local-only engineering notes
+ENGINEERING/

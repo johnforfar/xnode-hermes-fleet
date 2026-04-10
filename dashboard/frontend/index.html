@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hermes-fleet — agent board</title>
+  <meta name="description" content="Multi-agent task board for the xnode-hermes-fleet. Self-hosted on a sovereign Openmesh Xnode.">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* Openmesh design palette (matches openmesh.network and openmesh-support-agent) */
+    :root {
+      --bg-grad: linear-gradient(180deg, #212121 0%, #0d0d0d 54%, #0c0c0c 100%);
+      --bg: #0c0c0c;
+      --bg-elev: #181818;
+      --bg-elev-2: #222222;
+      --bg-card: #1a1a1a;
+      --fg: #f5f5f5;
+      --fg-dim: #9a9a9a;
+      --fg-faint: #666666;
+      --accent: #3dff7f;
+      --accent-dim: rgba(61, 255, 127, 0.12);
+      --accent-border: rgba(61, 255, 127, 0.35);
+      --orange: #ff5f05;
+      --orange-dim: rgba(255, 95, 5, 0.12);
+      --blue: #58a6ff;
+      --border: #2a2a2a;
+      --border-strong: #3a3a3a;
+      --code-bg: #0a0a0a;
+      --error: #ff4d4d;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Inter Tight", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      letter-spacing: -0.01em;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* === Aurora background (matches openmesh-support-agent) === */
+    .aurora { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; background: var(--bg-grad); }
+    .aurora::before, .aurora::after, .aurora .layer {
+      content: ""; position: absolute; inset: -25%;
+      filter: blur(80px); opacity: 0.5; mix-blend-mode: screen; will-change: transform;
+    }
+    .aurora::before {
+      background: radial-gradient(45% 35% at 30% 35%, #3dff7f 0%, transparent 60%),
+                  radial-gradient(35% 25% at 70% 60%, #18a85a 0%, transparent 60%);
+      animation: drift1 22s ease-in-out infinite alternate;
+    }
+    .aurora::after {
+      background: radial-gradient(35% 30% at 80% 20%, #ff5f05 0%, transparent 65%),
+                  radial-gradient(30% 25% at 20% 80%, #b03c00 0%, transparent 60%);
+      animation: drift2 28s ease-in-out infinite alternate; opacity: 0.3;
+    }
+    .aurora .layer {
+      background: radial-gradient(40% 30% at 60% 50%, #1e6a3f 0%, transparent 70%),
+                  radial-gradient(25% 20% at 15% 30%, #3dff7f 0%, transparent 70%);
+      animation: drift3 35s ease-in-out infinite alternate; opacity: 0.35;
+    }
+    @keyframes drift1 {
+      0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+      50% { transform: translate(-12%, 8%) rotate(40deg) scale(1.18); }
+      100% { transform: translate(10%, -6%) rotate(-30deg) scale(0.92); }
+    }
+    @keyframes drift2 {
+      0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+      50% { transform: translate(15%, -10%) rotate(-50deg) scale(1.25); }
+      100% { transform: translate(-8%, 12%) rotate(35deg) scale(0.88); }
+    }
+    @keyframes drift3 {
+      0% { transform: translate(0, 0) rotate(0deg) scale(1.1); }
+      50% { transform: translate(8%, 15%) rotate(60deg) scale(0.85); }
+      100% { transform: translate(-15%, -8%) rotate(-25deg) scale(1.2); }
+    }
+    .aurora-vignette {
+      position: fixed; inset: 0; pointer-events: none; z-index: 2;
+      background: radial-gradient(ellipse at center, transparent 40%, var(--bg) 100%);
+    }
+    @media (prefers-reduced-motion: reduce) { .aurora::before, .aurora::after, .aurora .layer { animation: none; } }
+
+    /* === Layout === */
+    header, main, footer { position: relative; z-index: 3; }
+
+    header {
+      padding: 1.1rem 1.75rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(12, 12, 12, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      position: sticky;
+      top: 0;
+    }
+    header h1 {
+      font-size: 1.05rem;
+      margin: 0;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      letter-spacing: -0.02em;
+    }
+    header h1 .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 12px var(--accent);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+    header h1 .accent { color: var(--accent); }
+    header .meta {
+      font-size: 0.78rem; color: var(--fg-dim);
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.75rem 1.5rem 1.5rem;
+      gap: 1.25rem;
+    }
+
+    /* === Top bar with project selector + new task button === */
+    .topbar {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .topbar h2 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      flex: 1;
+    }
+    .topbar select, .topbar button {
+      background: var(--bg-elev);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .topbar button.primary {
+      background: var(--accent);
+      color: #0a0a0a;
+      border: none;
+      font-weight: 600;
+    }
+    .topbar button.primary:hover { box-shadow: 0 0 18px var(--accent-dim); }
+
+    /* === Agent strip === */
+    .agents-strip {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      padding: 0.85rem;
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .agent-card {
+      flex: 1 1 200px;
+      min-width: 180px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+    }
+    .agent-card .agent-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.3rem;
+    }
+    .agent-card .agent-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--fg);
+    }
+    .agent-card .agent-role {
+      font-size: 0.74rem;
+      color: var(--fg-dim);
+      margin-top: 0.1rem;
+    }
+    .agent-card .agent-status {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-family: "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .agent-card .agent-status.idle {
+      background: var(--bg-elev-2);
+      color: var(--fg-faint);
+      border: 1px solid var(--border);
+    }
+    .agent-card .agent-status.busy {
+      background: var(--orange-dim);
+      color: var(--orange);
+      border: 1px solid rgba(255, 95, 5, 0.4);
+    }
+    .agent-card .agent-status.offline {
+      background: rgba(255, 77, 77, 0.1);
+      color: var(--error);
+      border: 1px solid var(--error);
+    }
+    .agent-card .agent-current {
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      margin-top: 0.4rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* === Kanban board === */
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      flex: 1;
+      min-height: 400px;
+    }
+    .column {
+      background: rgba(24, 24, 24, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .column-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.25rem 0.5rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .column-head .title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: -0.01em;
+    }
+    .column-head .count {
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      font-family: "JetBrains Mono", monospace;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+    }
+    .column[data-col="backlog"] .title::before {
+      content: "○ "; color: var(--fg-dim);
+    }
+    .column[data-col="in_progress"] .title::before {
+      content: "◐ "; color: var(--orange);
+    }
+    .column[data-col="done"] .title::before {
+      content: "● "; color: var(--accent);
+    }
+
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      min-height: 100px;
+      overflow-y: auto;
+      max-height: 65vh;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .card:hover {
+      border-color: var(--accent-border);
+      transform: translateY(-1px);
+    }
+    .card .title {
+      font-weight: 500;
+      font-size: 0.92rem;
+      line-height: 1.35;
+      margin-bottom: 0.4rem;
+    }
+    .card .description {
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .card .meta {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .card .role-pill {
+      font-size: 0.68rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      color: var(--fg-dim);
+      font-family: "JetBrains Mono", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .card .role-pill.pm { color: var(--accent); border-color: var(--accent-border); }
+    .card .role-pill.coder { color: var(--orange); border-color: rgba(255, 95, 5, 0.4); }
+    .card .role-pill.researcher { color: var(--blue); border-color: rgba(88, 166, 255, 0.4); }
+    .card .role-pill.writer { color: #c89eff; border-color: rgba(200, 158, 255, 0.4); }
+    .card .timestamp {
+      font-size: 0.7rem;
+      color: var(--fg-faint);
+      font-family: "JetBrains Mono", monospace;
+      margin-left: auto;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 1.5rem 0.5rem;
+      color: var(--fg-faint);
+      font-size: 0.85rem;
+    }
+
+    /* === Task detail modal === */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 1.5rem;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--bg-elev);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      max-width: 760px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 1.75rem 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+    .modal h3 {
+      margin: 0 0 0.4rem;
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+    }
+    .modal .modal-meta {
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      margin-bottom: 1rem;
+      font-family: "JetBrains Mono", monospace;
+    }
+    .modal .modal-description {
+      color: var(--fg-dim);
+      line-height: 1.55;
+      margin-bottom: 1.25rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal .output {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      white-space: pre-wrap;
+      font-family: inherit;
+      line-height: 1.55;
+      font-size: 0.92rem;
+    }
+    .modal .output.empty {
+      color: var(--fg-faint);
+      font-style: italic;
+    }
+    .modal .modal-actions {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 1.25rem;
+      justify-content: flex-end;
+    }
+    .modal button {
+      background: var(--bg-elev-2);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.9rem;
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .modal button.primary {
+      background: var(--accent);
+      color: #0a0a0a;
+      border: none;
+      font-weight: 600;
+    }
+
+    /* === New task form (also a modal) === */
+    .form-group { margin-bottom: 1rem; }
+    .form-group label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--fg-dim);
+      margin-bottom: 0.35rem;
+      font-weight: 500;
+    }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 0.85rem;
+      font-family: inherit;
+      font-size: 0.92rem;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    /* === Footer === */
+    footer {
+      text-align: center;
+      padding: 2rem 1.5rem 2.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--fg-dim);
+      font-size: 0.88rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    footer a:hover { text-decoration: underline; }
+    footer .stack-line {
+      color: var(--fg-faint);
+      font-size: 0.78rem;
+      margin-top: 0.5rem;
+      font-family: "JetBrains Mono", monospace;
+    }
+
+    @media (max-width: 900px) {
+      .board { grid-template-columns: 1fr; }
+      main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="aurora"><div class="layer"></div></div>
+  <div class="aurora-vignette"></div>
+
+  <header>
+    <h1>
+      <span class="dot"></span>
+      <span class="accent">hermes</span> fleet
+    </h1>
+    <div class="meta" id="health">connecting…</div>
+  </header>
+
+  <main>
+    <div class="topbar">
+      <h2 id="project-name">Loading…</h2>
+      <select id="project-select"></select>
+      <button class="primary" id="new-task-btn">+ New task</button>
+    </div>
+
+    <!-- Agent strip -->
+    <div class="agents-strip" id="agents-strip"></div>
+
+    <!-- Kanban board -->
+    <div class="board">
+      <div class="column" data-col="backlog">
+        <div class="column-head">
+          <span class="title">Backlog</span>
+          <span class="count" data-count="backlog">0</span>
+        </div>
+        <div class="cards" id="col-backlog"></div>
+      </div>
+      <div class="column" data-col="in_progress">
+        <div class="column-head">
+          <span class="title">In progress</span>
+          <span class="count" data-count="in_progress">0</span>
+        </div>
+        <div class="cards" id="col-in_progress"></div>
+      </div>
+      <div class="column" data-col="done">
+        <div class="column-head">
+          <span class="title">Done</span>
+          <span class="count" data-count="done">0</span>
+        </div>
+        <div class="cards" id="col-done"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Task detail modal -->
+  <div class="modal-backdrop" id="task-modal">
+    <div class="modal">
+      <h3 id="modal-title">…</h3>
+      <div class="modal-meta" id="modal-meta"></div>
+      <div class="modal-description" id="modal-description"></div>
+      <div><strong style="font-size:0.85rem; color:var(--fg-dim); display:block; margin-bottom:0.5rem;">AGENT OUTPUT</strong></div>
+      <div class="output" id="modal-output">no output yet</div>
+      <div class="modal-actions">
+        <button id="modal-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New task modal -->
+  <div class="modal-backdrop" id="new-task-modal">
+    <div class="modal">
+      <h3>New task</h3>
+      <div class="modal-meta">give one to an agent — they'll pick it up and start working</div>
+      <div class="form-group">
+        <label for="nt-title">Title</label>
+        <input id="nt-title" type="text" placeholder="e.g. Write a Python function to validate email addresses">
+      </div>
+      <div class="form-group">
+        <label for="nt-description">Description (optional)</label>
+        <textarea id="nt-description" placeholder="any extra detail the agent needs…"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="nt-role">Assign to</label>
+        <select id="nt-role">
+          <option value="pm">pm — project manager</option>
+          <option value="coder">coder — software engineer</option>
+          <option value="researcher">researcher</option>
+          <option value="writer">writer — technical writer</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button id="nt-cancel">Cancel</button>
+        <button class="primary" id="nt-create">Create task</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>
+      Deployed with <strong>Openmesh CLI v2.0</strong> via
+      <a href="https://claude.com/claude-code" target="_blank" rel="noopener">Claude Code</a> —
+      <a href="https://github.com/johnforfar" target="_blank" rel="noopener">John Forfar</a>
+    </div>
+    <div class="stack-line">hermes3:3b · ollama · postgres · 4 agent containers · 100% sovereign</div>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const escape = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+    const ROLE_LABELS = { pm: 'PM', coder: 'CODER', researcher: 'RESEARCHER', writer: 'WRITER' };
+
+    let state = {
+      currentProjectId: null,
+      projects: [],
+      tasks: [],
+      agents: [],
+    };
+
+    // ---- API helpers ----
+    async function api(path, opts = {}) {
+      const r = await fetch(`/api${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+      return r.json();
+    }
+
+    // ---- Loaders ----
+    async function loadProjects() {
+      state.projects = await api('/projects');
+      const sel = $('project-select');
+      sel.innerHTML = state.projects.map(p => `<option value="${p.id}">${escape(p.name)}</option>`).join('');
+      if (!state.currentProjectId && state.projects.length) {
+        state.currentProjectId = state.projects[0].id;
+        $('project-name').textContent = state.projects[0].name;
+      }
+      sel.value = state.currentProjectId;
+    }
+
+    async function loadAgents() {
+      state.agents = await api('/agents');
+      renderAgents();
+    }
+
+    async function loadTasks() {
+      if (!state.currentProjectId) return;
+      state.tasks = await api(`/tasks?project_id=${state.currentProjectId}`);
+      renderBoard();
+    }
+
+    async function loadHealth() {
+      try {
+        const h = await api('/health');
+        $('health').textContent = `${h.agents} agents · ${h.tasks} tasks · ${h.in_progress} active`;
+      } catch (e) {
+        $('health').textContent = 'offline';
+      }
+    }
+
+    // ---- Render ----
+    function renderAgents() {
+      $('agents-strip').innerHTML = state.agents.map(a => `
+        <div class="agent-card">
+          <div class="agent-head">
+            <div>
+              <div class="agent-name">${escape(a.name)}</div>
+              <div class="agent-role">${escape(a.role)}</div>
+            </div>
+            <span class="agent-status ${escape(a.status || 'offline')}">${escape(a.status || 'offline')}</span>
+          </div>
+          <div class="agent-current">${a.current_task_title ? '↳ ' + escape(a.current_task_title) : '<span style="color:var(--fg-faint)">idle</span>'}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderBoard() {
+      const cols = { backlog: [], in_progress: [], done: [] };
+      for (const t of state.tasks) {
+        if (cols[t.status]) cols[t.status].push(t);
+      }
+      for (const [col, tasks] of Object.entries(cols)) {
+        const el = $(`col-${col}`);
+        if (tasks.length === 0) {
+          el.innerHTML = '<div class="empty-state">no tasks here</div>';
+        } else {
+          el.innerHTML = tasks.map(renderCard).join('');
+          el.querySelectorAll('.card').forEach(c => {
+            c.addEventListener('click', () => openTask(parseInt(c.dataset.id)));
+          });
+        }
+        $(`[data-count="${col}"]`).textContent = tasks.length;
+      }
+    }
+
+    function renderCard(t) {
+      const role = (t.assigned_role || 'pm').toLowerCase();
+      const time = t.created_at ? new Date(t.created_at).toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '';
+      return `
+        <div class="card" data-id="${t.id}">
+          <div class="title">${escape(t.title)}</div>
+          ${t.description ? `<div class="description">${escape(t.description)}</div>` : ''}
+          <div class="meta">
+            <span class="role-pill ${role}">${escape(ROLE_LABELS[role] || role)}</span>
+            <span class="timestamp">${escape(time)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // ---- Modals ----
+    async function openTask(id) {
+      try {
+        const t = await api(`/tasks/${id}`);
+        $('modal-title').textContent = t.title;
+        const role = (t.assigned_role || '').toLowerCase();
+        const status = t.status || 'backlog';
+        $('modal-meta').textContent = `#${t.id} · ${role} · ${status}` +
+          (t.assigned_agent_name ? ` · @${t.assigned_agent_name}` : '');
+        $('modal-description').innerHTML = escape(t.description || '(no description)');
+        const out = $('modal-output');
+        if (t.output) {
+          out.classList.remove('empty');
+          out.textContent = t.output;
+        } else if (t.error) {
+          out.classList.remove('empty');
+          out.textContent = 'Error: ' + t.error;
+        } else {
+          out.classList.add('empty');
+          out.textContent = status === 'in_progress' ? 'agent is working on this…' : 'no output yet';
+        }
+        $('task-modal').classList.add('open');
+      } catch (e) {
+        alert('Failed to load task: ' + e.message);
+      }
+    }
+
+    $('modal-close').addEventListener('click', () => $('task-modal').classList.remove('open'));
+    $('task-modal').addEventListener('click', e => {
+      if (e.target.id === 'task-modal') $('task-modal').classList.remove('open');
+    });
+
+    $('new-task-btn').addEventListener('click', () => $('new-task-modal').classList.add('open'));
+    $('nt-cancel').addEventListener('click', () => $('new-task-modal').classList.remove('open'));
+    $('new-task-modal').addEventListener('click', e => {
+      if (e.target.id === 'new-task-modal') $('new-task-modal').classList.remove('open');
+    });
+
+    $('nt-create').addEventListener('click', async () => {
+      const title = $('nt-title').value.trim();
+      if (!title) { alert('title required'); return; }
+      const description = $('nt-description').value.trim();
+      const role = $('nt-role').value;
+      try {
+        await api('/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            title, description, role,
+            project_id: state.currentProjectId,
+          }),
+        });
+        $('nt-title').value = '';
+        $('nt-description').value = '';
+        $('new-task-modal').classList.remove('open');
+        loadTasks();
+        loadHealth();
+      } catch (e) {
+        alert('Failed: ' + e.message);
+      }
+    });
+
+    $('project-select').addEventListener('change', e => {
+      state.currentProjectId = parseInt(e.target.value);
+      const p = state.projects.find(x => x.id === state.currentProjectId);
+      if (p) $('project-name').textContent = p.name;
+      loadTasks();
+    });
+
+    // ---- Live updates via SSE ----
+    function startEventStream() {
+      const es = new EventSource('/api/events');
+      es.addEventListener('state', () => {
+        loadAgents();
+        loadTasks();
+        loadHealth();
+      });
+      es.addEventListener('error', () => {
+        // browser will auto-reconnect
+      });
+    }
+
+    // ---- Boot ----
+    (async () => {
+      try {
+        await loadProjects();
+        await loadAgents();
+        await loadTasks();
+        await loadHealth();
+        startEventStream();
+      } catch (e) {
+        console.error(e);
+        $('health').textContent = 'error: ' + e.message;
+      }
+    })();
+  </script>
+</body>
+</html>
