@@ -59,10 +59,12 @@
               user = "ollama";
               host = "0.0.0.0";
               port = 11434;
-              # v1.9: qwen3.5:4b is the new default — multimodal, thinking,
-              # ~3.4GB on disk, ~2.6GB RAM. <think> tags are stripped at
-              # the dashboard layer. hermes3:3b stays preloaded as fallback.
-              loadModels = [ "qwen3.5:4b" "hermes3:3b" ];
+              # v1.9: just preload hermes3:3b (the safe baseline). qwen3.5:4b
+              # gets pulled on demand via the dashboard model picker once
+              # we've confirmed the new ollama package starts cleanly.
+              # Preloading a 3.4GB model on first boot can mask startup
+              # failures, so we test the runtime first and pull second.
+              loadModels = [ "hermes3:3b" ];
             };
 
             # Open the firewall so other containers on the host's vz-* bridge
