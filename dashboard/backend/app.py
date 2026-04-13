@@ -112,15 +112,22 @@ OLLAMA_URLS = _ollama_candidates(OLLAMA_URL)
 # ─── Curated model catalogue for the 16GB Xnode ─────────────────────────────
 # Each entry: (id, label, approx_ram_gb, notes)
 # Anything over ~9GB will OOM on a 16GB host running our 6 containers.
-# All entries fit comfortably on the 16GB Xnode. Removed the oversize
-# qwen3.5:27b/35b/122b entries because they OOM the host.
-# Qwen 3.5 is multimodal (text + image) and supports thinking — we strip
-# <think> tags via stream_generate's regex pass.
+# Model catalogue scoped to a 16GB Xnode. Ollama is overridden in
+# `ollama/flake.nix` to use nixos-unstable's package (v0.20.3+), which
+# supports the qwen3.5 family. Removed only the truly oversize entries
+# (qwen2.5:32b, llama3.3:70b, qwen2.5:14b, mistral-nemo:12b — all OOM
+# the 16GB host).
+#
+# qwen3.5 is multimodal (text + image) and supports thinking. <think>
+# tags are stripped via stream_generate's regex pass.
 RECOMMENDED_MODELS = [
     {"id": "qwen3.5:4b",  "label": "Qwen 3.5 · 4B",         "ram_gb": 3.4, "ok": True, "notes": "default — multimodal, thinking, best balance for 16GB"},
     {"id": "qwen3.5:0.8b","label": "Qwen 3.5 · 0.8B (tiny)","ram_gb": 1.0, "ok": True, "notes": "fastest — sub-second responses, multimodal"},
     {"id": "qwen3.5:2b",  "label": "Qwen 3.5 · 2B",         "ram_gb": 2.7, "ok": True, "notes": "small Qwen 3.5 — multimodal, fast"},
-    {"id": "qwen3.5:9b",  "label": "Qwen 3.5 · 9B",         "ram_gb": 6.6, "ok": True, "notes": "biggest Qwen 3.5 that fits — slower but smarter"},
+    {"id": "qwen3.5:9b",  "label": "Qwen 3.5 · 9B",         "ram_gb": 6.6, "ok": True, "notes": "biggest qwen3.5 that fits — slower but smarter"},
+    {"id": "qwen3:4b",    "label": "Qwen 3 · 4B",           "ram_gb": 2.6, "ok": True, "notes": "previous-gen qwen3 — text only"},
+    {"id": "qwen3:0.6b",  "label": "Qwen 3 · 0.6B (tiny)",  "ram_gb": 0.7, "ok": True, "notes": "tiny text-only thinking model"},
+    {"id": "qwen3:8b",    "label": "Qwen 3 · 8B",           "ram_gb": 5.2, "ok": True, "notes": "previous-gen qwen3 mid-size"},
     {"id": "hermes3:3b",  "label": "Hermes 3 · 3B",         "ram_gb": 2.0, "ok": True, "notes": "NousResearch tool-calling model"},
     {"id": "llama3.2:3b", "label": "Llama 3.2 · 3B",        "ram_gb": 2.0, "ok": True, "notes": "Meta's small workhorse"},
     {"id": "qwen2.5:3b",  "label": "Qwen 2.5 · 3B",         "ram_gb": 2.0, "ok": True, "notes": "previous-gen Qwen small"},

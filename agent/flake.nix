@@ -54,7 +54,7 @@
                 # `trust` for our subnet (192.168.0.0/16) so no password.
                 DATABASE_URL = "postgresql://hermes@hermes-dashboard.local:5432/hermes";
                 OLLAMA_URL = "http://hermes-ollama.local:11434";
-                CHAT_MODEL = "qwen3.5:4b";  # fallback only — worker reads settings.active_model
+                CHAT_MODEL = "qwen3:4b";  # fallback only — worker reads settings.active_model
                 POLL_INTERVAL = "5";
                 NUM_PREDICT = "400";
                 TEMPERATURE = "0.5";
