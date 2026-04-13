@@ -1525,9 +1525,814 @@
     }
     @keyframes blink { 50% { opacity: 0; } }
 
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ─── v1.9 dom-perfect tab styles ─── */
+
+    /* List view */
+    .list-toolbar {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+    .list-toolbar-label { color: var(--fg-muted); font-size: 12px; font-weight: 600; }
+    .list-group-btn {
+      padding: 5px 12px; border-radius: 7px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: transparent; color: var(--fg-muted);
+      font-family: inherit; font-size: 11px; font-weight: 600;
+      cursor: pointer; text-transform: capitalize;
+      transition: all 0.15s;
+    }
+    .list-group-btn.active {
+      border: 1px solid rgba(88,166,255,0.4);
+      background: rgba(88,166,255,0.12);
+      color: var(--accent);
+    }
+    .list-task-count { color: var(--fg-muted); font-size: 11px; font-weight: 600; }
+    .list-header-row {
+      display: grid;
+      grid-template-columns: 1fr 140px 140px 120px 100px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      background: rgba(13,17,23,0.3);
+      flex-shrink: 0;
+    }
+    .list-header-cell {
+      padding: 12px 16px;
+      color: var(--fg-muted);
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .list-body { flex: 1; overflow-y: auto; }
+    .list-phase-header {
+      padding: 10px 16px;
+      background: rgba(13,17,23,0.5);
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .list-phase-title { color: var(--fg-muted); font-size: 12px; font-weight: 700; }
+    .list-phase-count { color: var(--fg-faint); font-size: 11px; }
+    .list-row {
+      display: grid;
+      grid-template-columns: 1fr 140px 140px 120px 100px;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+      min-height: 48px;
+      align-items: center;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .list-row:hover { background: rgba(255,255,255,0.02); }
+    .list-task-cell { display: flex; align-items: center; gap: 8px; padding: 0 16px; min-width: 0; }
+    .list-status-circle { flex-shrink: 0; display: flex; background: none; border: none; cursor: pointer; padding: 0; }
+    .list-task-title { color: var(--fg-gh); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .list-mini-tag {
+      padding: 1px 7px; border-radius: 20px; font-size: 9px;
+      background: rgba(88,166,255,0.1); color: var(--accent);
+      border: 1px solid rgba(88,166,255,0.2);
+      white-space: nowrap;
+    }
+    .list-assignee { display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+    .list-bot-icon {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(88,166,255,0.15);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .list-assignee-name { color: var(--fg-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .list-status-pill {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 600;
+    }
+    .list-priority-dot { display: flex; align-items: center; gap: 5px; padding: 0 12px; }
+    .list-priority-dot .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .list-priority-dot .label { font-size: 11px; }
+    .list-due { display: flex; align-items: center; gap: 4px; padding: 0 12px; color: var(--fg-muted); font-size: 11px; }
+
+    /* Gantt view */
+    .gantt-wrapper {
+      background: rgb(22,27,34);
+      border: 1px solid rgb(48,54,61);
+      border-radius: 12px;
+      padding: 16px;
+      overflow: auto;
+    }
+    .gantt-axis-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+      position: sticky; top: 0;
+      background: rgb(22,27,34);
+      z-index: 2;
+    }
+    .gantt-axis-ticks { position: relative; height: 18px; min-width: 600px; }
+    .gantt-axis-tick {
+      position: absolute; top: 0;
+      font-size: 10px; font-family: "JetBrains Mono", monospace;
+      color: var(--fg-muted);
+      transform: translateX(-50%);
+    }
+    .gantt-phase-header {
+      padding: 10px 0 6px;
+      color: var(--fg-muted);
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .gantt-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      padding: 5px 0;
+      align-items: center;
+    }
+    .gantt-label {
+      padding-right: 12px;
+      color: var(--fg-gh);
+      font-size: 12px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .gantt-label .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .gantt-timeline { position: relative; height: 22px; min-width: 600px; }
+    .gantt-bar {
+      position: absolute; top: 4px; bottom: 4px;
+      border-radius: 4px;
+      padding: 0 8px;
+      display: flex; align-items: center;
+      font-size: 10px; font-weight: 600;
+      color: rgba(255,255,255,0.95);
+      overflow: hidden; white-space: nowrap;
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+    .gantt-bar:hover { filter: brightness(1.15); }
+    .gantt-bar[data-status="backlog"]     { background: rgba(72,79,88,0.6); }
+    .gantt-bar[data-status="todo"]        { background: rgba(139,148,158,0.6); }
+    .gantt-bar[data-status="in_progress"] { background: var(--accent); }
+    .gantt-bar[data-status="review"]      { background: var(--orange); }
+    .gantt-bar[data-status="done"]        { background: var(--emerald); }
+    .gantt-today {
+      position: absolute; top: -4px; bottom: -4px;
+      width: 2px;
+      background: var(--red);
+      box-shadow: 0 0 6px rgba(248,81,73,0.6);
+    }
+
+    /* Calendar view */
+    .cal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .cal-header h3 { margin: 0; font-size: 16px; color: var(--fg); font-weight: 700; }
+    .cal-nav {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--fg); cursor: pointer;
+      font-family: inherit; font-size: 14px;
+    }
+    .cal-nav:hover { background: rgba(88,166,255,0.1); border-color: var(--accent); color: var(--accent); }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .cal-day-name {
+      text-align: center;
+      color: var(--fg-muted);
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 6px 0;
+    }
+    .cal-day {
+      min-height: 84px;
+      background: rgba(22,27,34,0.4);
+      border: 1px solid rgba(48,54,61,0.5);
+      border-radius: 8px;
+      padding: 6px 7px;
+      display: flex; flex-direction: column; gap: 3px;
+      overflow: hidden;
+    }
+    .cal-day.other-month { opacity: 0.3; }
+    .cal-day.today {
+      background: rgba(88,166,255,0.06);
+      border-color: var(--accent);
+    }
+    .cal-day.drop-target { background: rgba(88,166,255,0.15); }
+    .cal-day-num { color: var(--fg-muted); font-size: 11px; font-weight: 600; }
+    .cal-day.today .cal-day-num { color: var(--accent); font-weight: 700; }
+    .cal-chip {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      cursor: pointer;
+    }
+    .cal-chip[data-status="backlog"]     { background: rgba(72,79,88,0.3);  color: var(--fg-muted); }
+    .cal-chip[data-status="todo"]        { background: rgba(139,148,158,0.2); color: var(--fg-gh); }
+    .cal-chip[data-status="in_progress"] { background: rgba(88,166,255,0.25); color: var(--accent); }
+    .cal-chip[data-status="review"]      { background: rgba(255,166,87,0.2); color: var(--orange); }
+    .cal-chip[data-status="done"]        { background: rgba(63,185,80,0.2);  color: var(--gh-green); }
+    .cal-more {
+      font-size: 9px; color: var(--fg-faint);
+      font-family: "JetBrains Mono", monospace;
+    }
+    .cal-legend {
+      display: flex; gap: 18px; align-items: center;
+      justify-content: center;
+      margin-top: 20px;
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+    .cal-legend-item { display: flex; align-items: center; gap: 5px; }
+    .cal-legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+    /* Agents view */
+    .agents-org-title { margin-bottom: 20px; }
+    .agents-org-title h3 { margin: 0; color: var(--fg); font-size: 18px; font-weight: 700; }
+    .agents-org-subtitle { color: var(--fg-muted); font-size: 12px; }
+    .agents-team-label {
+      color: var(--fg-muted); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin: 24px 0 12px;
+    }
+    .agent-hero-card {
+      background: rgba(22,27,34,0.8);
+      border: 1px solid rgba(88,166,255,0.3);
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .agent-hero-card::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--hero-color, var(--purple-bright)), transparent);
+    }
+    .agent-hero-card:hover { border-color: var(--hero-color, var(--accent)); }
+    .agent-hero-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+    .agent-hero-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.35);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .agent-hero-name {
+      color: var(--fg); font-size: 17px; font-weight: 700;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .agent-hero-tier-badge {
+      font-size: 9px; font-weight: 700;
+      padding: 2px 7px; border-radius: 4px;
+      background: rgba(139,92,246,0.15);
+      color: var(--purple-bright);
+      border: 1px solid rgba(139,92,246,0.3);
+      text-transform: uppercase;
+    }
+    .agent-hero-role { color: var(--fg-muted); font-size: 12px; margin-top: 2px; }
+    .agent-hero-status {
+      margin-left: auto;
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 600;
+      background: rgba(139,148,158,0.1);
+      color: var(--fg-muted);
+      border: 1px solid rgba(139,148,158,0.2);
+    }
+    .agent-hero-status.busy { background: rgba(255,166,87,0.12); color: var(--orange); border-color: rgba(255,166,87,0.3); }
+    .agent-hero-specs {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin: 12px 0;
+    }
+    .agent-spec-pill {
+      padding: 3px 9px; border-radius: 6px;
+      font-size: 10px;
+      background: rgba(255,255,255,0.04);
+      color: var(--fg-muted);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .agent-hero-working {
+      margin-top: 12px; padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(88,166,255,0.06);
+      border: 1px solid rgba(88,166,255,0.15);
+      font-size: 12px;
+      color: var(--fg-gh);
+    }
+    .agent-hero-working-label {
+      color: var(--accent); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.6px;
+      margin-bottom: 3px;
+    }
+    .agent-hero-stats {
+      display: flex; gap: 24px; margin-top: 12px;
+    }
+    .agent-hero-stat { text-align: left; }
+    .agent-hero-stat .num { color: var(--fg); font-size: 20px; font-weight: 800; line-height: 1; }
+    .agent-hero-stat .num.done { color: var(--gh-green); }
+    .agent-hero-stat .num.open { color: var(--accent); }
+    .agent-hero-stat .label {
+      color: var(--fg-muted); font-size: 9px; font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+
+    .agents-team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .agent-team-card {
+      background: rgba(22,27,34,0.8);
+      border: 1px solid rgba(48,54,61,0.8);
+      border-radius: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.15s;
+    }
+    .agent-team-card::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--card-color, var(--accent)), transparent);
+    }
+    .agent-team-card:hover { border-color: var(--card-color, var(--accent)); }
+    .agent-team-head { display: flex; align-items: center; gap: 10px; margin-bottom: 3px; }
+    .agent-team-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .agent-team-name { color: var(--fg); font-size: 13px; font-weight: 700; flex: 1; }
+    .agent-team-role { color: var(--fg-muted); font-size: 11px; margin: 2px 0 10px 42px; }
+    .agent-team-status {
+      padding: 2px 8px; border-radius: 20px;
+      font-size: 9px; font-weight: 600;
+      background: rgba(139,148,158,0.1);
+      color: var(--fg-muted);
+      border: 1px solid rgba(139,148,158,0.2);
+    }
+    .agent-team-status.busy { background: rgba(255,166,87,0.12); color: var(--orange); border-color: rgba(255,166,87,0.3); }
+    .agent-team-specs {
+      display: flex; flex-wrap: wrap; gap: 4px;
+      margin: 8px 0;
+    }
+    .agent-team-specs .agent-spec-pill { font-size: 9px; padding: 2px 7px; }
+    .agent-team-stats {
+      display: flex; gap: 16px; margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.04);
+    }
+    .agent-team-stat { text-align: left; }
+    .agent-team-stat .num { color: var(--fg); font-size: 14px; font-weight: 700; line-height: 1; }
+    .agent-team-stat .num.done { color: var(--gh-green); }
+    .agent-team-stat .num.open { color: var(--accent); }
+    .agent-team-stat .label {
+      color: var(--fg-muted); font-size: 8px; font-weight: 600;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .agent-team-working {
+      margin-top: 8px; padding: 8px 10px;
+      border-radius: 6px;
+      background: rgba(88,166,255,0.06);
+      border: 1px solid rgba(88,166,255,0.15);
+      font-size: 10px; color: var(--accent);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* Command Center */
+    .cc-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      height: 100%;
+      overflow: hidden;
+    }
+    .cc-chat-panel {
+      border-right: 1px solid rgba(255,255,255,0.04);
+      background: rgba(13,17,23,0.4);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .cc-chat-header {
+      padding: 12px 16px 0;
+      flex-shrink: 0;
+    }
+    .cc-chat-tabs { display: flex; gap: 2px; }
+    .cc-chat-tab {
+      padding: 8px 14px; border: none; background: transparent;
+      color: var(--fg-muted); font-family: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer; border-bottom: 2px solid transparent;
+    }
+    .cc-chat-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+    .cc-chat-title-row {
+      padding: 14px 16px;
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      flex-shrink: 0;
+    }
+    .cc-chat-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: rgba(88,166,255,0.1);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cc-chat-title { color: var(--fg); font-size: 13px; font-weight: 700; }
+    .cc-chat-subtitle { color: var(--fg-muted); font-size: 10px; }
+    .cc-chat-badge {
+      margin-left: auto;
+      font-size: 9px; font-weight: 700;
+      padding: 4px 9px; border-radius: 20px;
+      background: rgba(255,166,87,0.12);
+      color: var(--orange);
+      border: 1px solid rgba(255,166,87,0.3);
+    }
+    .cc-chat-thread {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .cc-chat-msg { display: flex; }
+    .cc-chat-msg.user { justify-content: flex-end; }
+    .cc-chat-msg-bubble {
+      padding: 10px 12px;
+      border-radius: 10px;
+      max-width: 86%;
+      font-size: 12px; line-height: 1.5;
+    }
+    .cc-chat-msg.agent .cc-chat-msg-bubble {
+      background: rgba(88,166,255,0.08);
+      border: 1px solid rgba(88,166,255,0.2);
+      color: var(--fg-gh);
+    }
+    .cc-chat-msg.user .cc-chat-msg-bubble {
+      background: rgba(255,255,255,0.05);
+      color: var(--fg);
+    }
+    .cc-chat-quick {
+      padding: 10px 16px 6px;
+      display: flex; flex-wrap: wrap; gap: 5px;
+      flex-shrink: 0;
+    }
+    .cc-chat-chip {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      color: var(--fg-muted);
+      font-family: inherit; font-size: 10px;
+      cursor: pointer;
+    }
+    .cc-chat-chip:hover { color: var(--accent); border-color: rgba(88,166,255,0.3); }
+    .cc-chat-form {
+      padding: 10px 16px 14px;
+      display: flex; gap: 6px;
+      flex-shrink: 0;
+      border-top: 1px solid rgba(255,255,255,0.04);
+    }
+    .cc-chat-form input {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--fg);
+      font-family: inherit; font-size: 12px;
+      outline: none;
+    }
+    .cc-chat-form input:focus { border-color: var(--accent); }
+    .cc-chat-send {
+      width: 34px; height: 34px; border-radius: 8px;
+      border: none; cursor: pointer;
+      background: var(--accent);
+      color: #0a1020;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .cc-main-panel {
+      overflow-y: auto;
+      padding: 18px 20px;
+    }
+    .cc-agent-strip {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      padding-bottom: 14px;
+      margin-bottom: 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .cc-agent-chip {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 11px;
+      background: rgba(22,27,34,0.7);
+      border: 1px solid rgba(48,54,61,0.8);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .cc-agent-chip:hover { border-color: var(--accent); }
+    .cc-agent-chip-avatar {
+      width: 28px; height: 28px; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cc-agent-chip-name { color: var(--fg); font-size: 11px; font-weight: 700; }
+    .cc-agent-chip-stat { color: var(--fg-muted); font-size: 9px; margin-top: 1px; }
+    .cc-section { margin-bottom: 18px; }
+    .cc-section-head {
+      display: flex; align-items: center; gap: 7px;
+      color: var(--accent); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+    .cc-section-head.amber { color: var(--orange); }
+    .cc-live-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .cc-section-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .cc-section-dot.amber { background: var(--orange); }
+    .cc-section-dot.grey { background: var(--fg-muted); }
+    .cc-task-row {
+      background: rgba(22,27,34,0.6);
+      border: 1px solid rgba(48,54,61,0.7);
+      border-radius: 10px;
+      padding: 11px 14px;
+      margin-bottom: 6px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .cc-task-row:hover { border-color: var(--accent); }
+    .cc-task-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: rgba(88,166,255,0.08);
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cc-task-body { flex: 1; min-width: 0; }
+    .cc-task-title { color: var(--fg); font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cc-task-assignee { color: var(--fg-muted); font-size: 10px; margin-top: 2px; }
+    .cc-task-progress-wrap { width: 110px; flex-shrink: 0; }
+    .cc-task-progress-track { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+    .cc-task-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--purple-bright)); }
+    .cc-task-status-pill {
+      padding: 3px 8px; border-radius: 20px;
+      font-size: 9px; font-weight: 600;
+      background: rgba(88,166,255,0.12);
+      color: var(--accent);
+      border: 1px solid rgba(88,166,255,0.25);
+      white-space: nowrap;
+    }
+    .cc-task-status-pill.review {
+      background: rgba(255,166,87,0.12);
+      color: var(--orange);
+      border-color: rgba(255,166,87,0.25);
+    }
+    .cc-task-run-btn {
+      padding: 5px 12px; border-radius: 6px;
+      border: 1px solid rgba(88,166,255,0.3);
+      background: rgba(88,166,255,0.1);
+      color: var(--accent);
+      font-family: inherit; font-size: 10px; font-weight: 700;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .cc-task-run-btn:hover { background: rgba(88,166,255,0.2); }
+    .cc-start-all {
+      padding: 6px 14px; border-radius: 7px;
+      border: 1px solid rgba(88,166,255,0.35);
+      background: rgba(88,166,255,0.12);
+      color: var(--accent);
+      font-family: inherit; font-size: 11px; font-weight: 700;
+      cursor: pointer;
+    }
+    .cc-start-all:hover { background: rgba(88,166,255,0.2); }
+
+    /* Analytics + Advanced Insights */
+    .analytics-stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .analytics-stat-card {
+      background: rgb(22,27,34);
+      border: 1px solid rgb(48,54,61);
+      border-radius: 14px;
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .analytics-stat-card::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--card-accent, var(--accent)), transparent);
+    }
+    .analytics-stat-card .an-stat-icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px;
+    }
+    .analytics-stat-card .an-stat-value {
+      color: var(--fg-gh); font-size: 28px; font-weight: 800; line-height: 1;
+      margin-bottom: 4px;
+    }
+    .analytics-stat-card .an-stat-label { color: var(--fg-muted); font-size: 11px; font-weight: 500; }
+    .analytics-stat-card .an-stat-sub { color: var(--fg-faint); font-size: 10px; margin-top: 3px; }
+
+    .adv-stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .adv-stat-card {
+      background: rgb(22,27,34);
+      border: 1px solid rgb(48,54,61);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex; align-items: flex-start; gap: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .adv-stat-card::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--card-accent, var(--accent)), transparent);
+    }
+    .adv-stat-card .icon-tile {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .adv-stat-card .stat-body { flex: 1; }
+    .adv-stat-card .label {
+      color: var(--fg-faint); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    .adv-stat-card .value { color: var(--fg-gh); font-size: 20px; font-weight: 800; line-height: 1; }
+    .adv-stat-card .sub { font-size: 10px; margin-top: 4px; }
+
+    .analytics-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 900px) { .analytics-grid-2 { grid-template-columns: 1fr; } }
+    .analytics-card {
+      background: rgb(22,27,34);
+      border: 1px solid rgb(48,54,61);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .analytics-card-title {
+      color: var(--fg-gh); font-size: 12px; font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .donut-row { display: flex; align-items: center; gap: 16px; }
+    .donut-svg-wrap { width: 50%; }
+    .donut-legend { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .donut-legend-row { display: flex; align-items: center; gap: 8px; }
+    .donut-legend-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .donut-legend-row .label { color: var(--fg-muted); font-size: 11px; flex: 1; }
+    .donut-legend-row .value { color: var(--fg-gh); font-size: 11px; font-weight: 700; }
+
+    .bar-chart-row { margin-bottom: 10px; }
+    .bar-chart-row .bar-row-head { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .bar-chart-row .bar-row-head .name { color: var(--fg-muted); font-size: 11px; }
+    .bar-chart-row .bar-row-head .value { color: var(--fg-gh); font-size: 11px; font-weight: 700; }
+    .bar-chart-row .bar-row-head .mini { font-size: 10px; }
+    .bar-chart-row .bar-track {
+      height: 5px; background: rgba(255,255,255,0.05);
+      border-radius: 3px; overflow: hidden;
+    }
+    .bar-chart-row .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+    .adv-quick-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 12px; border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+      margin-bottom: 8px;
+    }
+    .adv-quick-row .name { color: var(--fg-muted); font-size: 11px; }
+    .adv-quick-row .value { font-size: 13px; font-weight: 700; }
+
+    .collab-row { margin-bottom: 14px; }
+    .collab-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .collab-head .icon-tile {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .collab-head .label { color: var(--fg-gh); font-size: 12px; font-weight: 600; flex: 1; }
+    .collab-head .value { font-size: 18px; font-weight: 800; }
+    .collab-head .pct { color: var(--fg-faint); font-size: 11px; }
+    .collab-health {
+      margin-top: 10px;
+      padding: 12px 14px; border-radius: 10px;
+      background: rgba(88,166,255,0.06);
+      border: 1px solid rgba(88,166,255,0.12);
+    }
+    .collab-health .label { color: var(--accent); font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+    .collab-health .value { color: var(--fg-gh); font-size: 28px; font-weight: 800; }
+    .collab-health .sub { color: var(--fg-muted); font-size: 11px; }
+
+    .adv-risk-row {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(248,81,73,0.06);
+      border: 1px solid rgba(248,81,73,0.15);
+      margin-bottom: 8px;
+    }
+    .adv-risk-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .adv-risk-head .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); }
+    .adv-risk-head .name { color: var(--fg-gh); font-size: 11px; font-weight: 600; flex: 1; }
+    .adv-risk-head .likelihood { color: var(--fg-faint); font-size: 9px; }
+    .adv-risk-body { color: var(--fg-muted); font-size: 11px; line-height: 1.4; }
+
+    /* Telemetry gauges (reused) */
+    .gauge-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px;
+      background: rgba(22,27,34,0.6);
+      border: 1px solid rgb(48,54,61);
+      border-radius: 8px;
+      font-size: 11px;
+    }
+    .gauge-row .gauge-label {
+      width: 56px;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg-muted);
+      font-size: 10px; text-transform: uppercase;
+    }
+    .gauge-row .gauge-track {
+      flex: 1; height: 6px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 3px; overflow: hidden;
+    }
+    .gauge-row .gauge-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--purple-bright));
+    }
+    .gauge-row .gauge-fill.high { background: linear-gradient(90deg, var(--amber), var(--orange)); }
+    .gauge-row .gauge-fill.crit { background: linear-gradient(90deg, var(--orange), var(--red)); }
+    .gauge-row .gauge-value {
+      width: 110px;
+      font-family: "JetBrains Mono", monospace;
+      color: var(--fg); font-size: 10px; text-align: right;
+    }
+
+    .danger-zone {
+      margin-top: 14px;
+      padding: 10px 12px;
+      background: rgba(248,81,73,0.06);
+      border: 1px dashed rgba(248,81,73,0.4);
+      border-radius: 10px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .danger-zone .danger-text { flex: 1; font-size: 11px; color: var(--fg-muted); line-height: 1.4; }
+    .danger-zone .danger-text strong { color: var(--red); }
+    .danger-zone button {
+      background: rgba(248,81,73,0.15); color: var(--red);
+      border: 1px solid rgba(248,81,73,0.4);
+      border-radius: 7px; padding: 6px 11px;
+      font-family: inherit; font-size: 10px; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+    }
+
+    /* Priority dot on board cards */
+    .card .priority-dot {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px;
+    }
+    .card .priority-dot .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .card .priority-dot.high .dot { background: var(--red); }
+    .card .priority-dot.high { color: var(--red); }
+    .card .priority-dot.medium .dot { background: var(--orange); }
+    .card .priority-dot.medium { color: var(--orange); }
+    .card .priority-dot.low .dot { background: var(--gh-green); }
+    .card .priority-dot.low { color: var(--gh-green); }
+
     /* ─── Responsive ─── */
     @media (max-width: 1100px) {
       .sidebar { width: 180px; }
+      .cc-layout { grid-template-columns: 340px 1fr; }
+    }
+    @media (max-width: 900px) {
+      .cc-layout { grid-template-columns: 1fr; }
+      .analytics-stat-row, .adv-stat-row { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 800px) {
       .sidebar { display: none; }
@@ -1665,68 +2470,138 @@
         </div>
       </div>
 
-    <!-- ─── List view ─── -->
+    <!-- ─── List view (dom-perfect from OwnStartup spec) ─── -->
     <div class="view" id="view-list">
-      <table class="list-table" id="list-table">
-        <thead><tr>
-          <th data-sort="title">Title</th>
-          <th data-sort="assigned_role">Assigned</th>
-          <th data-sort="status">Status</th>
-          <th data-sort="due_date">Due</th>
-          <th data-sort="created_at">Created</th>
-        </tr></thead>
-        <tbody id="list-body"></tbody>
-      </table>
-    </div>
-
-    <!-- ─── Gantt view ─── -->
-    <div class="view" id="view-gantt">
-      <div class="gantt-wrapper" id="gantt"></div>
-    </div>
-
-    <!-- ─── Calendar view ─── -->
-    <div class="view" id="view-calendar">
-      <div class="calendar">
-        <div class="cal-header">
-          <button id="cal-prev">‹ Prev</button>
-          <h3 id="cal-month">…</h3>
-          <button id="cal-next">Next ›</button>
+      <div class="view-body" style="padding: 0;">
+        <div class="list-toolbar">
+          <span class="list-toolbar-label">Group by:</span>
+          <button class="list-group-btn active" data-group="phase">phase</button>
+          <button class="list-group-btn" data-group="assignee">assignee</button>
+          <button class="list-group-btn" data-group="status">status</button>
+          <div style="flex:1;"></div>
+          <span class="list-task-count" id="list-task-count">0 tasks</span>
         </div>
-        <div class="cal-grid" id="cal-grid"></div>
+        <div class="list-header-row">
+          <div class="list-header-cell">Task</div>
+          <div class="list-header-cell">Assignee</div>
+          <div class="list-header-cell">Status</div>
+          <div class="list-header-cell">Priority</div>
+          <div class="list-header-cell">Due</div>
+        </div>
+        <div class="list-body" id="list-body"></div>
       </div>
     </div>
 
-    <!-- ─── Agents view ─── -->
+    <!-- ─── Gantt view (sticky label col + week timeline + status bars) ─── -->
+    <div class="view" id="view-gantt">
+      <div class="view-body">
+        <div class="gantt-wrapper" id="gantt"></div>
+      </div>
+    </div>
+
+    <!-- ─── Calendar view (month grid + status legend) ─── -->
+    <div class="view" id="view-calendar">
+      <div class="view-body">
+        <div class="cal-header">
+          <h3 id="cal-month">…</h3>
+          <div style="display:flex; gap:8px;">
+            <button class="cal-nav" id="cal-prev">‹</button>
+            <button class="cal-nav" id="cal-next">›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend" id="cal-legend"></div>
+      </div>
+    </div>
+
+    <!-- ─── Agents view (Lead hero + team grid with specialty pills) ─── -->
     <div class="view" id="view-agents">
-      <div class="stat-grid" id="agents-stat-grid"></div>
-      <div id="agents-detail-list" style="display:flex; flex-direction:column; gap:0.85rem;"></div>
+      <div class="view-body">
+        <div class="agents-org-title">
+          <h3>Agent Organization</h3>
+          <span class="agents-org-subtitle" id="agents-org-subtitle">loading…</span>
+        </div>
+        <div id="agents-executive-section"></div>
+        <div id="agents-lead-section"></div>
+        <div class="agents-team-label">Team Agents</div>
+        <div class="agents-team-grid" id="agents-team-grid"></div>
+      </div>
     </div>
 
     <!-- ─── Org Chart view ─── -->
     <div class="view" id="view-orgchart">
-      <div style="text-align:center; color:var(--fg-dim); font-size:0.85rem; padding:0.5rem 1rem 0;">
-        Click any agent to chat with them. CEO sets strategy → PM coordinates → specialists execute. Click the cog in the chat modal to edit any agent's persona.
+      <div class="view-body">
+        <div style="text-align:center; color:var(--fg-dim); font-size:12px; padding:0 16px 16px;">
+          Click any agent to chat with them. Atlas sets strategy → Orion coordinates → specialists execute.
+        </div>
+        <div class="orgchart" id="orgchart"></div>
       </div>
-      <div class="orgchart" id="orgchart"></div>
     </div>
 
-    <!-- ─── Command Center ─── -->
+    <!-- ─── Command Center (chat panel + agent strip + task stacks) ─── -->
     <div class="view" id="view-command">
-      <div class="stat-grid" id="cc-stat-grid"></div>
-      <div class="cc-grid">
-        <div class="cc-panel">
-          <h4>Live activity feed <span class="badge">SSE</span></h4>
-          <div class="activity-feed" id="cc-activity"></div>
-        </div>
-        <div class="cc-panel">
-          <h4>Infrastructure <span class="badge" id="cc-uptime">…</span></h4>
-          <div id="cc-telemetry" style="display:flex; flex-direction:column; gap:0.45rem; margin-bottom:0.85rem;"></div>
-          <div id="cc-infra" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
-          <div class="danger-zone">
-            <div class="danger-text">
-              <strong>Demo reset</strong> — wipes all tasks, re-seeds the launch plan, resets agents to idle. User-edited personas are preserved.
+      <div class="cc-layout">
+        <div class="cc-chat-panel">
+          <div class="cc-chat-header">
+            <div class="cc-chat-tabs">
+              <button class="cc-chat-tab active" data-cctab="chat">Chat</button>
+              <button class="cc-chat-tab" data-cctab="insights">Insights</button>
             </div>
-            <button id="cc-reset">↺ Reset board</button>
+          </div>
+          <div class="cc-chat-title-row">
+            <div class="cc-chat-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+            <div>
+              <div class="cc-chat-title">Command Center</div>
+              <div class="cc-chat-subtitle" id="cc-chat-subtitle">7 agents standing by</div>
+            </div>
+            <span class="cc-chat-badge" id="cc-chat-badge">0 to review</span>
+          </div>
+          <div class="cc-chat-thread" id="cc-chat-thread">
+            <div class="cc-chat-msg agent">
+              <div class="cc-chat-msg-bubble">
+                Your AI team is ready for the OpenxAI Hardware Launch. 7 agents configured, 18 tasks planned. Say "start" to begin or ask me anything.
+              </div>
+            </div>
+          </div>
+          <div class="cc-chat-quick" id="cc-chat-quick">
+            <button class="cc-chat-chip" data-quickq="Start all tasks">Start all tasks</button>
+            <button class="cc-chat-chip" data-quickq="Status update">Status update</button>
+            <button class="cc-chat-chip" data-quickq="In review?">In review?</button>
+            <button class="cc-chat-chip" data-quickq="What's next?">What's next?</button>
+          </div>
+          <form class="cc-chat-form" id="cc-chat-form">
+            <input type="text" id="cc-chat-input" placeholder='Say "start" to begin, or ask anything…' autocomplete="off">
+            <button type="submit" class="cc-chat-send"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+          </form>
+        </div>
+
+        <div class="cc-main-panel">
+          <div class="cc-agent-strip" id="cc-agent-strip"></div>
+          <div class="cc-section">
+            <div class="cc-section-head"><span class="cc-live-dot"></span> LIVE · <span id="cc-live-count">0</span> WORKING</div>
+            <div id="cc-live-list"></div>
+          </div>
+          <div class="cc-section">
+            <div class="cc-section-head amber"><span class="cc-section-dot amber"></span> AWAITING REVIEW · <span id="cc-review-count">0</span></div>
+            <div id="cc-review-list"></div>
+          </div>
+          <div class="cc-section">
+            <div class="cc-section-head"><span class="cc-section-dot grey"></span> PENDING · <span id="cc-pending-count">0</span> TASKS</div>
+            <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+              <button class="cc-start-all" id="cc-start-all">▶ Start All</button>
+            </div>
+            <div id="cc-pending-list"></div>
+          </div>
+          <div class="cc-section">
+            <div class="cc-section-head"><span class="cc-section-dot grey"></span> INFRASTRUCTURE · <span id="cc-uptime">uptime</span></div>
+            <div id="cc-telemetry" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;"></div>
+            <div id="cc-infra" style="display:flex; flex-direction:column; gap:5px;"></div>
+            <div class="danger-zone">
+              <div class="danger-text">
+                <strong>Demo reset</strong> — wipes all tasks, re-seeds the launch plan, resets agents to idle. User-edited personas are preserved.
+              </div>
+              <button id="cc-reset">↺ Reset board</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1734,34 +2609,74 @@
 
     <!-- ─── Analytics ─── -->
     <div class="view" id="view-analytics">
-      <div class="stat-grid" id="an-stat-grid"></div>
-      <div class="bar-chart">
-        <h4>Tasks by status</h4>
-        <div id="an-status-bars"></div>
-      </div>
-      <div class="bar-chart">
-        <h4>Tasks by agent (workload)</h4>
-        <div id="an-agent-bars"></div>
-      </div>
-      <div class="bar-chart">
-        <h4>Velocity — last 14 days (tasks completed)</h4>
-        <div id="an-velocity"></div>
+      <div class="view-body">
+        <div class="analytics-stat-row" id="an-stat-row"></div>
+        <div class="analytics-grid-2">
+          <div class="analytics-card">
+            <div class="analytics-card-title">Task Status Distribution</div>
+            <div class="donut-row">
+              <div class="donut-svg-wrap" id="an-status-donut"></div>
+              <div class="donut-legend" id="an-status-legend"></div>
+            </div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-card-title">Tasks by Priority</div>
+            <div id="an-priority-chart"></div>
+          </div>
+        </div>
+        <div class="analytics-grid-2">
+          <div class="analytics-card">
+            <div class="analytics-card-title">Agent Workload</div>
+            <div id="an-agent-workload"></div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-card-title">Phase Completion</div>
+            <div id="an-phase-completion"></div>
+          </div>
+        </div>
+        <div class="analytics-grid-2">
+          <div class="analytics-card">
+            <div class="analytics-card-title">Productivity Radar</div>
+            <div id="an-radar"></div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-card-title">AI vs Human Collaboration</div>
+            <div id="an-collab"></div>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- ─── Advanced Insights ─── -->
     <div class="view" id="view-advanced">
-      <div class="stat-grid" id="adv-stat-grid"></div>
-      <div class="cc-panel">
-        <h4>Overdue tasks</h4>
-        <table class="list-table">
-          <thead><tr><th>Title</th><th>Agent</th><th>Status</th><th>Due</th></tr></thead>
-          <tbody id="adv-overdue"></tbody>
-        </table>
-      </div>
-      <div class="cc-panel">
-        <h4>Per-agent throughput</h4>
-        <div id="adv-agent-throughput"></div>
+      <div class="view-body">
+        <div class="adv-stat-row" id="adv-stat-row"></div>
+        <div class="analytics-grid-2">
+          <div class="analytics-card">
+            <div class="analytics-card-title">Health Score Breakdown</div>
+            <div id="adv-health-radar"></div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-card-title">Quick Metrics</div>
+            <div id="adv-quick-metrics"></div>
+          </div>
+        </div>
+        <div class="analytics-grid-2">
+          <div class="analytics-card">
+            <div class="analytics-card-title">Timeline Progress</div>
+            <div id="adv-timeline"></div>
+          </div>
+          <div class="analytics-card">
+            <div class="analytics-card-title">Agent Utilization</div>
+            <div id="adv-utilization"></div>
+          </div>
+        </div>
+        <div class="analytics-card">
+          <div class="analytics-card-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px; vertical-align:-2px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Active Risks &amp; Mitigations
+          </div>
+          <div id="adv-risks"></div>
+        </div>
       </div>
     </div>
 
@@ -2281,6 +3196,8 @@
       const prevLabel = prev ? STATUS_LABELS[prev] : '';
       const nextLabel = next ? STATUS_LABELS[next] : '';
       const delegated = t.parent_task_id ? '<span class="delegated-pill" title="auto-delegated by an agent">⛓ delegated</span>' : '';
+      const priority = t.priority || 'Medium';
+      const priCls = priority.toLowerCase();
       return `
         <div class="card ${incomplete ? 'incomplete' : ''}" draggable="true" data-id="${t.id}" data-status="${status}">
           <div class="card-body">
@@ -2295,6 +3212,9 @@
                 <div class="bot-icon">${BOT_SVG}</div>
                 <span class="name">${roleLabel}</span>
               </div>
+              <span class="priority-dot ${priCls}" title="Priority: ${priority}">
+                <span class="dot"></span>${escape(priority)}
+              </span>
               <div class="due ${dc}">
                 ${CLOCK_SVG}
                 <span>${dueTxt}</span>
@@ -2545,48 +3465,117 @@
     }
 
     // ---- List view ----
+    // v1.9 dom-perfect List view: group-by toolbar + 5-col grid + phase headers
+    state.listGroup = state.listGroup || 'phase';
+    const STATUS_PILL_CLASS = {
+      backlog: 'backlog', todo: 'todo',
+      in_progress: 'in-progress', review: 'review',
+      done: 'done', failed: 'failed',
+    };
+    const STATUS_LABEL = {
+      backlog: 'Backlog', todo: 'To Do',
+      in_progress: 'In Progress', review: 'Review',
+      done: 'Done', failed: 'Failed',
+    };
+    const STATUS_STYLE = {
+      backlog: { bg: 'rgba(72,79,88,0.1)',  fg: 'var(--fg-faint)',  border: 'rgba(72,79,88,0.25)' },
+      todo:    { bg: 'rgba(139,148,158,0.082)', fg: 'var(--fg-muted)', border: 'rgba(139,148,158,0.19)' },
+      in_progress: { bg: 'rgba(88,166,255,0.082)', fg: 'var(--accent)', border: 'rgba(88,166,255,0.19)' },
+      review:  { bg: 'rgba(255,166,87,0.082)', fg: 'var(--orange)', border: 'rgba(255,166,87,0.19)' },
+      done:    { bg: 'rgba(63,185,80,0.082)', fg: 'var(--gh-green)', border: 'rgba(63,185,80,0.19)' },
+      failed:  { bg: 'rgba(248,81,73,0.082)', fg: 'var(--red)', border: 'rgba(248,81,73,0.19)' },
+    };
+    const PRIORITY_COLOR = { High: '#f85149', Medium: '#ffa657', Low: '#3fb950' };
+    const CLOCK_SM_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+    const BOT_SM_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>';
+    const STATUS_CIRCLE_TODO = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
+    const STATUS_CIRCLE_INPROG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 2s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>';
+    const STATUS_CIRCLE_REVIEW = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffa657" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>';
+    const STATUS_CIRCLE_DONE = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>';
+    function statusCircleSvg(status) {
+      if (status === 'in_progress') return STATUS_CIRCLE_INPROG;
+      if (status === 'review') return STATUS_CIRCLE_REVIEW;
+      if (status === 'done') return STATUS_CIRCLE_DONE;
+      return STATUS_CIRCLE_TODO;
+    }
     function renderList() {
-      const tbody = $('list-body');
-      const sorted = [...filteredTasks()].sort((a, b) => {
-        const av = a[state.sortBy] ?? '';
-        const bv = b[state.sortBy] ?? '';
-        const cmp = String(av).localeCompare(String(bv));
-        return state.sortDir === 'asc' ? cmp : -cmp;
-      });
-      tbody.innerHTML = sorted.map(t => {
-        const role = (t.assigned_role || '').toLowerCase();
-        const incomplete = isIncomplete(t);
-        const ass = (t.assignees && t.assignees.length) ? t.assignees.join(', ') : '<span style="color:var(--error)">unassigned</span>';
+      const body = $('list-body');
+      const tasks = filteredTasks();
+      $('list-task-count').textContent = `${tasks.length} task${tasks.length === 1 ? '' : 's'}`;
+
+      // Group by selected dimension
+      const groups = {};
+      for (const t of tasks) {
+        let key;
+        if (state.listGroup === 'assignee') key = t.assigned_role || '(unassigned)';
+        else if (state.listGroup === 'status') key = STATUS_LABEL[t.status] || t.status;
+        else key = t.phase || 'Uncategorised';
+        (groups[key] = groups[key] || []).push(t);
+      }
+      const groupKeys = Object.keys(groups).sort();
+
+      body.innerHTML = groupKeys.map(g => {
+        const rows = groups[g];
         return `
-          <tr class="${incomplete ? 'incomplete' : ''}" data-id="${t.id}">
-            <td>${escape(t.title)}</td>
-            <td><span class="role-pill ${role}" style="font-size:0.62rem; padding:0.13rem 0.45rem; border-radius:999px;">${ass}</span></td>
-            <td><span style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-dim)">${escape(t.status)}</span></td>
-            <td><span class="${dueClass(t) === 'overdue' ? '' : ''}" style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:${dueClass(t)==='overdue'?'var(--error)':dueClass(t)==='missing'?'var(--error)':'var(--fg-dim)'}">${escape(dueLabel(t))}</span></td>
-            <td style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-faint)">${escape(fmt(t.created_at))}</td>
-          </tr>
+          <div>
+            <div class="list-phase-header">
+              <span class="list-phase-title">${escape(g)}</span>
+              <span class="list-phase-count">(${rows.length})</span>
+            </div>
+            ${rows.map(t => renderListRow(t)).join('')}
+          </div>
         `;
       }).join('');
-      $$$('tr', tbody).forEach(tr => tr.addEventListener('click', () => openTask(parseInt(tr.dataset.id))));
-      // Sort handlers
-      $$$('th[data-sort]', $('list-table')).forEach(th => {
-        th.onclick = () => {
-          const k = th.dataset.sort;
-          if (state.sortBy === k) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
-          else { state.sortBy = k; state.sortDir = 'asc'; }
-          renderList();
-        };
-        const arrow = state.sortBy === th.dataset.sort ? `<span class="sort-arrow">${state.sortDir==='asc'?'↑':'↓'}</span>` : '';
-        th.innerHTML = th.dataset.sort.replace('_',' ') + arrow;
+
+      $$$('.list-row', body).forEach(r => {
+        r.addEventListener('click', () => openTask(parseInt(r.dataset.id)));
+      });
+
+      // Group-by toggle
+      $$$('.list-group-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.group === state.listGroup);
+        btn.onclick = () => { state.listGroup = btn.dataset.group; renderList(); };
       });
     }
+    function renderListRow(t) {
+      const status = t.status || 'todo';
+      const pri = t.priority || 'Medium';
+      const priColor = PRIORITY_COLOR[pri] || PRIORITY_COLOR.Medium;
+      const ss = STATUS_STYLE[status] || STATUS_STYLE.todo;
+      const assignee = t.assigned_role || '—';
+      const assigneeCap = assignee.charAt(0).toUpperCase() + assignee.slice(1);
+      const dueOverdue = dueClass(t) === 'overdue';
+      return `
+        <div class="list-row" data-id="${t.id}">
+          <div class="list-task-cell">
+            <button class="list-status-circle">${statusCircleSvg(status)}</button>
+            <span class="list-task-title">${escape(t.title)}</span>
+          </div>
+          <div class="list-assignee">
+            <div class="list-bot-icon">${BOT_SM_SVG}</div>
+            <span class="list-assignee-name">${escape(assigneeCap)}</span>
+          </div>
+          <div style="padding:0 12px;">
+            <span class="list-status-pill" style="background:${ss.bg}; color:${ss.fg}; border:1px solid ${ss.border};">${escape(STATUS_LABEL[status] || status)}</span>
+          </div>
+          <div class="list-priority-dot" style="color:${priColor};">
+            <span class="dot" style="background:${priColor};"></span>
+            <span class="label">${escape(pri)}</span>
+          </div>
+          <div class="list-due" style="${dueOverdue ? 'color:var(--red);' : ''}">
+            ${CLOCK_SM_SVG}
+            <span>${escape(dueLabel(t))}</span>
+          </div>
+        </div>
+      `;
+    }
 
-    // ---- Gantt view ----
+    // v1.9 dom-perfect Gantt: sticky label col + week timeline + phase groups
     function renderGantt() {
       const root = $('gantt');
       const tasks = filteredTasks().filter(t => t.due_date || t.created_at);
       if (!tasks.length) { root.innerHTML = '<div class="empty-state">no tasks</div>'; return; }
-      // Compute date window
+
       const now = new Date();
       let minD = now, maxD = now;
       for (const t of tasks) {
@@ -2595,49 +3584,65 @@
         if (start < minD) minD = start;
         if (end > maxD) maxD = end;
       }
-      // Pad
       minD = new Date(minD.getTime() - 86400000 * 2);
       maxD = new Date(maxD.getTime() + 86400000 * 3);
       const span = maxD - minD;
       const pct = (d) => ((new Date(d) - minD) / span) * 100;
       const todayPct = pct(now);
 
-      // Axis marks: every ~7 days
+      // Weekly marks
       const marks = [];
-      const stepDays = Math.max(3, Math.round((span / 86400000) / 12));
+      const stepDays = Math.max(3, Math.round((span / 86400000) / 10));
       for (let d = new Date(minD); d <= maxD; d.setDate(d.getDate() + stepDays)) {
         marks.push({ date: new Date(d), pct: pct(d) });
       }
 
-      const sorted = [...tasks].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      // Group by phase
+      const groups = {};
+      for (const t of tasks) {
+        const k = t.phase || 'Uncategorised';
+        (groups[k] = groups[k] || []).push(t);
+      }
+      const groupKeys = Object.keys(groups).sort();
+      for (const k of groupKeys) {
+        groups[k].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      }
+
       let html = `
-        <div class="gantt-axis">
+        <div class="gantt-axis-row">
           <div></div>
-          <div class="gantt-axis-marks">
-            ${marks.map(m => `<div class="gantt-axis-mark" style="left:${m.pct}%">${m.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div>`).join('')}
+          <div class="gantt-axis-ticks">
+            ${marks.map(m => `<div class="gantt-axis-tick" style="left:${m.pct}%">${m.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div>`).join('')}
           </div>
         </div>
       `;
-      html += sorted.map(t => {
-        const start = new Date(t.created_at);
-        const end = t.completed_at ? new Date(t.completed_at) : (t.due_date ? new Date(t.due_date) : now);
-        let left = pct(start);
-        let right = pct(end);
-        if (right - left < 1.5) right = left + 1.5;
-        return `
-          <div class="gantt-row">
-            <div class="gantt-label" title="${escape(t.title)}">${escape(t.title)}</div>
-            <div class="gantt-timeline">
-              <div class="gantt-today" style="left:${todayPct}%"></div>
-              <div class="gantt-bar" data-status="${escape(t.status)}" data-id="${t.id}"
-                   style="left:${left}%; width:${right-left}%"
-                   title="${escape(t.title)} · ${escape(t.status)}">
-                ${escape(t.assigned_role || '')}
+      for (const g of groupKeys) {
+        html += `<div class="gantt-phase-header">${escape(g)}</div>`;
+        html += groups[g].map(t => {
+          const start = new Date(t.created_at);
+          const end = t.completed_at ? new Date(t.completed_at) : (t.due_date ? new Date(t.due_date) : now);
+          let left = pct(start);
+          let right = pct(end);
+          if (right - left < 1.5) right = left + 1.5;
+          const dotColor = STATUS_STYLE[t.status]?.fg || 'var(--fg-muted)';
+          return `
+            <div class="gantt-row">
+              <div class="gantt-label" title="${escape(t.title)}">
+                <span class="dot" style="background:${dotColor};"></span>
+                ${escape(t.title)}
+              </div>
+              <div class="gantt-timeline">
+                <div class="gantt-today" style="left:${todayPct}%"></div>
+                <div class="gantt-bar" data-status="${escape(t.status)}" data-id="${t.id}"
+                     style="left:${left}%; width:${right-left}%"
+                     title="${escape(t.title)} · ${escape(t.status)}">
+                  ${escape(t.title).slice(0, 30)}
+                </div>
               </div>
             </div>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      }
       root.innerHTML = html;
       // Stash the current window so the persistent drag handlers can compute dates
       ganttWindow = { minMs: minD.getTime(), spanMs: span };
@@ -2732,6 +3737,24 @@
       for (let d = 1; d <= trailing; d++) {
         grid.appendChild(makeCalDay(new Date(m.getFullYear(), m.getMonth() + 1, d), byDay, today, true));
       }
+
+      // Render status legend
+      const legend = $('cal-legend');
+      if (legend) {
+        const items = [
+          ['todo', '#8b949e', 'To Do'],
+          ['in_progress', '#58a6ff', 'In Progress'],
+          ['review', '#ffa657', 'Review'],
+          ['done', '#3fb950', 'Done'],
+          ['backlog', '#484f58', 'Backlog'],
+        ];
+        legend.innerHTML = items.map(([, color, label]) => `
+          <div class="cal-legend-item">
+            <span class="cal-legend-dot" style="background:${color};"></span>
+            <span>${label}</span>
+          </div>
+        `).join('');
+      }
     }
 
     function makeCalDay(date, byDay, today, otherMonth) {
@@ -2740,12 +3763,12 @@
       const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
       const tasks = byDay[key] || [];
       const num = document.createElement('div');
-      num.className = 'cal-num'; num.textContent = date.getDate();
+      num.className = 'cal-day-num'; num.textContent = date.getDate();
       el.appendChild(num);
       tasks.slice(0, 3).forEach(t => {
         const tEl = document.createElement('div');
-        tEl.className = 'cal-task' + (dueClass(t) === 'overdue' ? ' overdue' : '');
-        tEl.dataset.role = t.assigned_role || '';
+        tEl.className = 'cal-chip';
+        tEl.dataset.status = t.status;
         tEl.title = t.title;
         tEl.textContent = t.title;
         tEl.draggable = true;
@@ -2796,86 +3819,233 @@
       renderCalendar();
     });
 
-    // ---- Agents view (full management) ----
+    // v1.9 dom-perfect Agents view: Lead hero card + team grid
+    // Inline lucide SVG by name — only a small set needed
+    const LUCIDE = {
+      compass: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/><circle cx="12" cy="12" r="10"/></svg>',
+      "clipboard-list": '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>',
+      cpu: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>',
+      search: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+      palette: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>',
+      feather: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.67 19a2 2 0 0 0 1.416-.588l6.154-6.172a6 6 0 0 0-8.49-8.49L5.586 9.914A2 2 0 0 0 5 11.328V18a1 1 0 0 0 1 1z"/><path d="M16 8 2 22"/><path d="M17.5 15H9"/></svg>',
+      "book-open": '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>',
+      bot: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
+    };
+    function iconFor(name) { return LUCIDE[name] || LUCIDE.bot; }
+    function effectiveStatusCls(a) {
+      if (state.streamingAgents.has(a.name)) return 'busy';
+      return a.status === 'busy' ? 'busy' : '';
+    }
     function renderAgentsView() {
-      const grid = $('agents-stat-grid');
-      grid.innerHTML = state.agents.map(a => `
-        <div class="stat-card ${a.tier === 'executive' ? 'purple' : a.tier === 'lead' ? 'accent' : 'green'}">
-          <div class="label">${escape(a.role)}</div>
-          <div class="value">${escape(a.name)}</div>
-          <div class="sub">${a.open_tasks || 0} open · ${a.done_tasks || 0} done · ${a.status || 'offline'}</div>
-        </div>
-      `).join('');
-      $('agents-detail-list').innerHTML = state.agents.map(a => `
-        <div class="cc-panel" data-name="${escape(a.name)}" style="cursor:pointer;">
-          <h4>${escape(a.name)} — ${escape(a.role)}
-            <span class="badge">${escape(a.tier || 'team')}</span>
-            <span class="badge" style="background:${a.status==='busy'?'var(--orange-dim)':'var(--bg-elev-2)'}; color:${a.status==='busy'?'var(--orange)':'var(--fg-dim)'}">${escape(a.status || 'offline')}</span>
-          </h4>
-          <div style="display:flex; gap:1.2rem; flex-wrap:wrap; font-size:0.78rem; color:var(--fg-dim); font-family:'JetBrains Mono',monospace;">
-            <span>open: <strong style="color:var(--fg)">${a.open_tasks || 0}</strong></span>
-            <span>done: <strong style="color:var(--green)">${a.done_tasks || 0}</strong></span>
-            <span>total: <strong style="color:var(--fg)">${a.total_tasks || 0}</strong></span>
-            <span>last seen: <strong style="color:var(--fg)">${escape(a.last_seen_at ? fmt(a.last_seen_at) : 'never')}</strong></span>
+      const total = state.agents.length;
+      $('agents-org-subtitle').textContent = `${total} agents assigned to this project`;
+
+      // Lead tier (executive + lead) rendered as hero cards
+      const exec = state.agents.filter(a => a.tier === 'executive');
+      const leads = state.agents.filter(a => a.tier === 'lead');
+      const team = state.agents.filter(a => a.tier === 'team' || !a.tier);
+
+      const renderHero = (a, tierLabel) => {
+        const col = a.color || '#8b5cf6';
+        const iconSvg = iconFor(a.icon || 'bot');
+        const working = state.streamingAgents.has(a.name)
+          ? '<span class="live-dots" style="color:var(--accent);">thinking via ' + escape(state.activeModel || 'qwen3.5:4b') + '</span>'
+          : (a.current_task_title ? escape(a.current_task_title) : '<span style="color:var(--fg-faint);">idle</span>');
+        return `
+          <div class="agent-hero-card" data-name="${escape(a.name)}" style="--hero-color:${col};">
+            <div class="agent-hero-head">
+              <div class="agent-hero-icon" style="background:${col}22; border-color:${col}55; color:${col};">${iconSvg}</div>
+              <div>
+                <div class="agent-hero-name">${escape(a.name[0].toUpperCase() + a.name.slice(1))} <span class="agent-hero-tier-badge" style="background:${col}22; color:${col}; border-color:${col}55;">${escape(tierLabel)}</span></div>
+                <div class="agent-hero-role">${escape(a.role)}</div>
+              </div>
+              <span class="agent-hero-status ${effectiveStatusCls(a)}">${escape(a.status || 'idle')}</span>
+            </div>
+            <div class="agent-hero-specs">
+              ${(a.specialties || []).map(s => `<span class="agent-spec-pill">${escape(s)}</span>`).join('')}
+            </div>
+            <div class="agent-hero-working">
+              <div class="agent-hero-working-label">${a.current_task_title || state.streamingAgents.has(a.name) ? 'WORKING ON' : 'STATUS'}</div>
+              ${working}
+            </div>
+            <div class="agent-hero-stats">
+              <div class="agent-hero-stat"><div class="num">${a.total_tasks || 0}</div><div class="label">Tasks</div></div>
+              <div class="agent-hero-stat"><div class="num done">${a.done_tasks || 0}</div><div class="label">Done</div></div>
+              <div class="agent-hero-stat"><div class="num open">${a.open_tasks || 0}</div><div class="label">Open</div></div>
+            </div>
           </div>
-          ${a.current_task_title ? `<div style="margin-top:0.5rem; font-size:0.78rem; color:var(--accent)">↳ working on: ${escape(a.current_task_title)}</div>` : ''}
-          <div style="margin-top:0.85rem; display:flex; gap:0.5rem;">
-            <button class="status-btn" onclick="event.stopPropagation(); openAgentChat('${escape(a.name)}')">💬 Chat</button>
-            <button class="status-btn" onclick="event.stopPropagation(); editAgentPrompt('${escape(a.name)}')">⚙ Edit persona</button>
+        `;
+      };
+
+      $('agents-executive-section').innerHTML = exec.map(a => renderHero(a, 'Executive')).join('');
+      $('agents-lead-section').innerHTML = leads.map(a => renderHero(a, 'Lead')).join('');
+
+      $('agents-team-grid').innerHTML = team.map(a => {
+        const col = a.color || '#58a6ff';
+        const working = a.current_task_title
+          ? `<div class="agent-team-working">↳ ${escape(a.current_task_title)}</div>`
+          : '';
+        return `
+          <div class="agent-team-card" data-name="${escape(a.name)}" style="--card-color:${col};">
+            <div class="agent-team-head">
+              <div class="agent-team-icon" style="background:${col}22; border:1px solid ${col}55; color:${col};">${iconFor(a.icon || 'bot')}</div>
+              <span class="agent-team-name">${escape(a.name[0].toUpperCase() + a.name.slice(1))}</span>
+              <span class="agent-team-status ${effectiveStatusCls(a)}">${escape(a.status || 'idle')}</span>
+            </div>
+            <div class="agent-team-role">${escape(a.role)}</div>
+            <div class="agent-team-specs">
+              ${(a.specialties || []).slice(0, 4).map(s => `<span class="agent-spec-pill">${escape(s)}</span>`).join('')}
+            </div>
+            ${working}
+            <div class="agent-team-stats">
+              <div class="agent-team-stat"><div class="num">${a.total_tasks || 0}</div><div class="label">Tasks</div></div>
+              <div class="agent-team-stat"><div class="num done">${a.done_tasks || 0}</div><div class="label">Done</div></div>
+              <div class="agent-team-stat"><div class="num open">${a.open_tasks || 0}</div><div class="label">Open</div></div>
+            </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+
+      $$$('.agent-hero-card, .agent-team-card').forEach(el => {
+        el.addEventListener('click', () => openAgentChat(el.dataset.name));
+      });
     }
 
-    // ---- Command Center ----
+    // v1.9 dom-perfect Command Center
     function renderCommandCenter() {
-      const counts = {};
-      for (const t of state.tasks) counts[t.status] = (counts[t.status] || 0) + 1;
-      const overdue = state.tasks.filter(t => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done' && t.status !== 'failed').length;
-      const unassigned = state.tasks.filter(t => (!t.assignees || t.assignees.length === 0) && t.status !== 'done' && t.status !== 'failed').length;
-      const busy = state.agents.filter(a => a.status === 'busy').length;
-      const grid = $('cc-stat-grid');
-      grid.innerHTML = `
-        <div class="stat-card accent"><div class="label">Total tasks</div><div class="value">${state.tasks.length}</div><div class="sub">across all 5 columns</div></div>
-        <div class="stat-card green"><div class="label">Done</div><div class="value">${counts.done || 0}</div><div class="sub">completed</div></div>
-        <div class="stat-card accent"><div class="label">In progress</div><div class="value">${counts.in_progress || 0}</div><div class="sub">${busy} agent${busy===1?'':'s'} working now</div></div>
-        <div class="stat-card warn"><div class="label">In review</div><div class="value">${counts.review || 0}</div><div class="sub">awaiting human signoff</div></div>
-        <div class="stat-card error"><div class="label">Overdue</div><div class="value">${overdue}</div><div class="sub">past due, not done</div></div>
-        <div class="stat-card error"><div class="label">Unassigned</div><div class="value">${unassigned}</div><div class="sub">need an owner</div></div>
-      `;
-      // Activity feed (in-memory log of state deltas)
-      $('cc-activity').innerHTML = state.activity.length === 0
-        ? '<div class="empty-state">waiting for live updates…</div>'
-        : state.activity.slice(0, 30).map(a => `
-          <div class="activity-row">
-            <span class="ts">${escape(a.ts)}</span>
-            <span class="body">${a.html}</span>
+      const tasks = state.tasks;
+      const live = tasks.filter(t => t.status === 'in_progress');
+      const review = tasks.filter(t => t.status === 'review');
+      const pending = tasks.filter(t => t.status === 'todo').slice(0, 15);
+
+      const liveCount = live.length, reviewCount = review.length, pendingCount = pending.length;
+      $('cc-live-count').textContent = liveCount;
+      $('cc-review-count').textContent = reviewCount;
+      $('cc-pending-count').textContent = pendingCount;
+      $('cc-chat-subtitle').textContent = `${state.agents.length} agents standing by`;
+      const reviewPill = $('cc-chat-badge');
+      reviewPill.textContent = `${reviewCount} to review`;
+      reviewPill.style.display = reviewCount > 0 ? '' : 'none';
+
+      // Agent strip
+      $('cc-agent-strip').innerHTML = state.agents.map(a => {
+        const col = a.color || '#58a6ff';
+        return `
+          <div class="cc-agent-chip" data-name="${escape(a.name)}">
+            <div class="cc-agent-chip-avatar" style="background:${col}22; border:1px solid ${col}55; color:${col};">${iconFor(a.icon || 'bot')}</div>
+            <div>
+              <div class="cc-agent-chip-name">${escape(a.name[0].toUpperCase() + a.name.slice(1))}</div>
+              <div class="cc-agent-chip-stat">${a.open_tasks || 0} open · ${a.done_tasks || 0} done</div>
+            </div>
           </div>
-        `).join('');
-      // Telemetry — fire-and-forget; updates the gauges when ready
+        `;
+      }).join('');
+      $$$('.cc-agent-chip', $('cc-agent-strip')).forEach(chip => {
+        chip.addEventListener('click', () => openAgentChat(chip.dataset.name));
+      });
+
+      const taskRowHtml = (t, opts = {}) => {
+        const assignee = (t.assigned_role || '—');
+        const assigneeCap = assignee.charAt(0).toUpperCase() + assignee.slice(1);
+        const progress = t.status === 'in_progress' ? 60 : t.status === 'review' ? 90 : t.status === 'done' ? 100 : 0;
+        const statusPillCls = t.status === 'review' ? 'review' : '';
+        const statusText = t.status === 'review' ? 'Needs Review' : t.status === 'in_progress' ? 'Working…' : STATUS_LABEL[t.status] || t.status;
+        return `
+          <div class="cc-task-row" data-id="${t.id}">
+            <div class="cc-task-icon">${iconFor('clipboard-list')}</div>
+            <div class="cc-task-body">
+              <div class="cc-task-title">${escape(t.title)}</div>
+              <div class="cc-task-assignee">${escape(assigneeCap)}${t.phase ? ' · ' + escape(t.phase) : ''}</div>
+            </div>
+            ${opts.showProgress ? `<div class="cc-task-progress-wrap"><div class="cc-task-progress-track"><div class="cc-task-progress-fill" style="width:${progress}%"></div></div></div>` : ''}
+            ${opts.showStatus !== false ? `<span class="cc-task-status-pill ${statusPillCls}">${escape(statusText)}</span>` : ''}
+            ${opts.showRun ? `<button class="cc-task-run-btn" data-run="${t.id}">▶ Run</button>` : ''}
+          </div>
+        `;
+      };
+
+      $('cc-live-list').innerHTML = live.length
+        ? live.map(t => taskRowHtml(t, { showProgress: true, showStatus: true })).join('')
+        : '<div class="empty-state">no tasks working right now</div>';
+
+      $('cc-review-list').innerHTML = review.length
+        ? review.map(t => taskRowHtml(t, { showStatus: true })).join('')
+        : '<div class="empty-state">nothing awaiting review</div>';
+
+      $('cc-pending-list').innerHTML = pending.length
+        ? pending.map(t => taskRowHtml(t, { showRun: true, showStatus: false })).join('')
+        : '<div class="empty-state">no pending tasks</div>';
+
+      // Wire task row clicks + run buttons
+      $$$('.cc-task-row').forEach(row => {
+        row.addEventListener('click', e => {
+          if (e.target.closest('[data-run]')) return;
+          openTask(parseInt(row.dataset.id));
+        });
+      });
+      $$$('[data-run]').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = parseInt(btn.dataset.run);
+          try {
+            await api(`/tasks/${id}/move`, {
+              method: 'POST',
+              body: JSON.stringify({ status: 'in_progress' }),
+            });
+            loadTasks();
+          } catch (err) { alert('Run failed: ' + err.message); }
+        });
+      });
+
+      // Telemetry + infrastructure (reuse existing)
       loadTelemetry();
-      // Infrastructure
       $('cc-infra').innerHTML = `
         ${[
-          ['hermes-dashboard', 'Flask · Postgres · nginx · SSE', 'green'],
-          ['hermes-ollama', 'Ollama runtime · hermes3:3b loaded', 'green'],
-          ['hermes-agent-pm', 'Project manager worker', 'green'],
-          ['hermes-agent-coder', 'Software engineer worker', 'green'],
-          ['hermes-agent-researcher', 'Hardware researcher worker', 'green'],
-          ['hermes-agent-writer', 'Technical writer worker', 'green'],
-        ].map(([n, d, c]) => `
-          <div style="display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.7rem; background:var(--bg-card); border:1px solid var(--border); border-radius:8px;">
-            <span style="width:8px; height:8px; border-radius:50%; background:var(--${c}); box-shadow:0 0 8px var(--${c});"></span>
-            <span style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--fg);">${n}</span>
-            <span style="font-size:0.72rem; color:var(--fg-faint); margin-left:auto;">${d}</span>
+          ['hermes-dashboard', 'Flask · Postgres · nginx · SSE'],
+          ['hermes-ollama', 'Ollama · qwen3.5:4b loaded'],
+          ['hermes-agent-atlas',  'Launch Director'],
+          ['hermes-agent-orion',  'Program Manager'],
+          ['hermes-agent-forge',  'Hardware Engineer'],
+          ['hermes-agent-vesper', 'Component Researcher'],
+          ['hermes-agent-lyra',   'Brand & Web Designer'],
+          ['hermes-agent-echo',   'Launch Copywriter'],
+          ['hermes-agent-sage',   'DevRel & Docs'],
+        ].map(([n, d]) => `
+          <div style="display:flex; align-items:center; gap:8px; padding:6px 9px; background:rgba(22,27,34,0.6); border:1px solid rgb(48,54,61); border-radius:7px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:var(--gh-green); box-shadow:0 0 6px var(--gh-green);"></span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--fg-gh);">${n}</span>
+            <span style="font-size:10px; color:var(--fg-faint); margin-left:auto;">${d}</span>
           </div>
         `).join('')}
-        <div style="font-size:0.7rem; color:var(--fg-faint); margin-top:0.4rem; font-family:'JetBrains Mono',monospace; padding:0.4rem;">
-          all 6 containers run on a single Openmesh Xnode<br>
-          <span style="color:var(--accent)">8 vCPU · 16GB RAM · 320GB SSD</span>
+        <div style="font-size:10px; color:var(--fg-faint); margin-top:6px; font-family:'JetBrains Mono',monospace; padding:4px;">
+          9 containers on a single Openmesh Xnode · <span style="color:var(--accent);">8 vCPU · 16GB RAM · 320GB SSD</span>
         </div>
       `;
     }
+
+    // Command Center chat form — opens chat-with-agent for Atlas by default
+    // (Atlas is the Launch Director / executive). The quick-chips also forward.
+    (function wireCommandCenterChat() {
+      const form = $('cc-chat-form');
+      if (!form) return;
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        const msg = $('cc-chat-input').value.trim();
+        if (!msg) return;
+        $('cc-chat-input').value = '';
+        openAgentChat('atlas');
+        setTimeout(() => {
+          const chatInput = $('agent-chat-input');
+          if (chatInput) { chatInput.value = msg; $('agent-chat-form').requestSubmit(); }
+        }, 120);
+      });
+      $$$('.cc-chat-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          $('cc-chat-input').value = chip.dataset.quickq;
+          form.requestSubmit();
+        });
+      });
+    })();
 
     // ---- Model picker ----
     async function loadModels() {
@@ -3139,93 +4309,364 @@
       }
     }
 
+    // ─── SVG chart helpers ────────────────────────────────────────────────
+    // Minimal hand-rolled SVG charts. No chart library dependency.
+    function svgDonut(segments, size = 160) {
+      // segments: [{value, color, label}]
+      const total = segments.reduce((a, s) => a + s.value, 0) || 1;
+      const cx = size / 2, cy = size / 2;
+      const outerR = size * 0.45;
+      const innerR = size * 0.28;
+      let angle = -Math.PI / 2;
+      const paths = segments.filter(s => s.value > 0).map(s => {
+        const portion = s.value / total;
+        const endAngle = angle + portion * Math.PI * 2;
+        const x1 = cx + outerR * Math.cos(angle), y1 = cy + outerR * Math.sin(angle);
+        const x2 = cx + outerR * Math.cos(endAngle), y2 = cy + outerR * Math.sin(endAngle);
+        const x3 = cx + innerR * Math.cos(endAngle), y3 = cy + innerR * Math.sin(endAngle);
+        const x4 = cx + innerR * Math.cos(angle), y4 = cy + innerR * Math.sin(angle);
+        const large = portion > 0.5 ? 1 : 0;
+        angle = endAngle;
+        return `<path fill="${s.color}" d="M ${x1} ${y1} A ${outerR} ${outerR} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${large} 0 ${x4} ${y4} Z"/>`;
+      });
+      return `<svg viewBox="0 0 ${size} ${size}" width="100%" height="${size}">${paths.join('')}</svg>`;
+    }
+
+    function svgBarChart(rows, opts = {}) {
+      // rows: [{label, value, color}]
+      const w = opts.w || 460, h = opts.h || 160, padL = 30, padB = 28, padT = 10;
+      const maxV = Math.max(...rows.map(r => r.value), 1);
+      const barW = Math.min(40, (w - padL - 10) / rows.length * 0.5);
+      const gapW = (w - padL - 10) / rows.length;
+      const yScale = (v) => padT + (h - padT - padB) * (1 - v / maxV);
+      let bars = '';
+      let labels = '';
+      rows.forEach((r, i) => {
+        const x = padL + gapW * i + gapW / 2 - barW / 2;
+        const y = yScale(r.value);
+        const bh = (h - padT - padB) - (y - padT);
+        bars += `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="4" fill="${r.color}" opacity="0.8"/>`;
+        labels += `<text x="${padL + gapW * i + gapW / 2}" y="${h - 10}" font-size="10" fill="#8b949e" text-anchor="middle">${escape(r.label)}</text>`;
+      });
+      // gridlines
+      let grid = '';
+      for (let i = 0; i <= 4; i++) {
+        const y = padT + ((h - padT - padB) / 4) * i;
+        grid += `<line x1="${padL}" y1="${y}" x2="${w - 10}" y2="${y}" stroke="rgba(255,255,255,0.04)"/>`;
+      }
+      return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">${grid}${bars}${labels}</svg>`;
+    }
+
+    function svgRadar(axes, values, max = 100, size = 200) {
+      // axes: array of label strings; values: array of same length
+      const cx = size / 2, cy = size / 2 - 10;
+      const r = size * 0.32;
+      const n = axes.length;
+      const pt = (v, i) => {
+        const ang = -Math.PI / 2 + (i / n) * Math.PI * 2;
+        const radius = (v / max) * r;
+        return [cx + Math.cos(ang) * radius, cy + Math.sin(ang) * radius];
+      };
+      // grid rings
+      let rings = '';
+      for (let ri = 1; ri <= 4; ri++) {
+        const points = [];
+        for (let i = 0; i < n; i++) {
+          const ang = -Math.PI / 2 + (i / n) * Math.PI * 2;
+          const rr = (r * ri) / 4;
+          points.push([cx + Math.cos(ang) * rr, cy + Math.sin(ang) * rr]);
+        }
+        rings += `<polygon points="${points.map(p => p.join(',')).join(' ')}" fill="none" stroke="rgba(255,255,255,0.05)"/>`;
+      }
+      // axis lines + labels
+      let axisLines = '';
+      axes.forEach((label, i) => {
+        const [x, y] = pt(max, i);
+        axisLines += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="rgba(255,255,255,0.05)"/>`;
+        const [lx, ly] = pt(max * 1.18, i);
+        axisLines += `<text x="${lx}" y="${ly}" font-size="9" fill="#8b949e" text-anchor="middle" dominant-baseline="middle">${escape(label)}</text>`;
+      });
+      const dataPts = values.map((v, i) => pt(v, i));
+      const poly = `<polygon points="${dataPts.map(p => p.join(',')).join(' ')}" fill="#58a6ff" fill-opacity="0.18" stroke="#58a6ff" stroke-width="2"/>`;
+      return `<svg viewBox="0 0 ${size} ${size}" width="100%" height="${size}">${rings}${axisLines}${poly}</svg>`;
+    }
+
+    // v1.9 dom-perfect Analytics
     function renderAnalytics(d) {
       const total = Object.values(d.by_status).reduce((a,b)=>a+b, 0);
       const done = d.by_status.done || 0;
       const completion = total ? Math.round((done/total)*100) : 0;
-      $('an-stat-grid').innerHTML = `
-        <div class="stat-card accent"><div class="label">Total tasks</div><div class="value">${total}</div></div>
-        <div class="stat-card green"><div class="label">Completion</div><div class="value">${completion}%</div></div>
-        <div class="stat-card accent"><div class="label">Avg lead time</div><div class="value">${Math.round((d.avg_lead_seconds||0)/3600)}h</div><div class="sub">created → done</div></div>
-        <div class="stat-card purple"><div class="label">Avg cycle time</div><div class="value">${Math.round((d.avg_cycle_seconds||0)/3600)}h</div><div class="sub">started → done</div></div>
+      const overdue = d.overdue_count || 0;
+      const inProgress = d.by_status.in_progress || 0;
+
+      // Stat row
+      $('an-stat-row').innerHTML = `
+        <div class="analytics-stat-card" style="--card-accent:#3fb950;">
+          <div class="an-stat-icon" style="background:rgba(63,185,80,0.1); color:#3fb950;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          </div>
+          <div class="an-stat-value">${completion}%</div>
+          <div class="an-stat-label">Completion Rate</div>
+          <div class="an-stat-sub">${done} of ${total} tasks done</div>
+        </div>
+        <div class="analytics-stat-card" style="--card-accent:#58a6ff;">
+          <div class="an-stat-icon" style="background:rgba(88,166,255,0.1); color:#58a6ff;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+          </div>
+          <div class="an-stat-value">${inProgress}</div>
+          <div class="an-stat-label">In Progress</div>
+          <div class="an-stat-sub">Active tasks right now</div>
+        </div>
+        <div class="analytics-stat-card" style="--card-accent:#f85149;">
+          <div class="an-stat-icon" style="background:rgba(248,81,73,0.1); color:#f85149;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+          </div>
+          <div class="an-stat-value">${overdue}</div>
+          <div class="an-stat-label">Overdue Tasks</div>
+          <div class="an-stat-sub">Need attention</div>
+        </div>
+        <div class="analytics-stat-card" style="--card-accent:#bc8cff;">
+          <div class="an-stat-icon" style="background:rgba(188,140,255,0.1); color:#bc8cff;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="an-stat-value">${Math.round((d.avg_lead_seconds||0)/3600)}h</div>
+          <div class="an-stat-label">Avg Lead Time</div>
+          <div class="an-stat-sub">created → done</div>
+        </div>
       `;
-      const maxStatus = Math.max(...Object.values(d.by_status), 1);
-      $('an-status-bars').innerHTML = ['backlog','todo','in_progress','review','done'].map(s => {
-        const v = d.by_status[s] || 0;
+
+      // Donut — task status distribution
+      const statusColors = {
+        backlog: '#484f58', todo: '#8b949e', in_progress: '#58a6ff',
+        review: '#ffa657', done: '#3fb950', failed: '#f85149',
+      };
+      const segments = Object.entries(d.by_status || {}).map(([k, v]) => ({
+        value: v, color: statusColors[k] || '#8b949e', label: STATUS_LABEL[k] || k,
+      }));
+      $('an-status-donut').innerHTML = svgDonut(segments);
+      $('an-status-legend').innerHTML = segments.map(s => `
+        <div class="donut-legend-row">
+          <span class="dot" style="background:${s.color};"></span>
+          <span class="label">${s.label}</span>
+          <span class="value">${s.value}</span>
+        </div>
+      `).join('');
+
+      // Tasks by priority bar chart
+      const byPri = { Low: 0, Medium: 0, High: 0 };
+      for (const t of state.tasks) byPri[t.priority || 'Medium'] = (byPri[t.priority || 'Medium'] || 0) + 1;
+      const priRows = [
+        { label: 'Low', value: byPri.Low, color: '#3fb950' },
+        { label: 'Medium', value: byPri.Medium, color: '#ffa657' },
+        { label: 'High', value: byPri.High, color: '#f85149' },
+      ];
+      $('an-priority-chart').innerHTML = svgBarChart(priRows, { h: 160 });
+
+      // Agent workload
+      const byRole = d.by_role || {};
+      const byRoleDone = {};
+      for (const t of state.tasks) {
+        if (t.status === 'done') byRoleDone[t.assigned_role] = (byRoleDone[t.assigned_role] || 0) + 1;
+      }
+      const maxRole = Math.max(...Object.values(byRole), 1);
+      $('an-agent-workload').innerHTML = Object.entries(byRole).map(([role, v]) => {
+        const roleDone = byRoleDone[role] || 0;
+        const active = state.tasks.filter(t => t.assigned_role === role && t.status === 'in_progress').length;
         return `
-          <div class="bar-row">
-            <div class="bar-label">${s.replace('_',' ')}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${(v/maxStatus)*100}%"></div></div>
-            <div class="bar-value">${v}</div>
+          <div class="bar-chart-row">
+            <div class="bar-row-head">
+              <span class="name">${escape(role.charAt(0).toUpperCase() + role.slice(1))}</span>
+              <div style="display:flex; gap:10px;">
+                <span class="value mini" style="color:#58a6ff;">${active} active</span>
+                <span class="value mini" style="color:#3fb950;">${roleDone}/${v} done</span>
+              </div>
+            </div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(v/maxRole)*100}%; background:#58a6ff;"></div></div>
           </div>
         `;
       }).join('');
-      const maxRole = Math.max(...Object.values(d.by_role), 1);
-      $('an-agent-bars').innerHTML = Object.entries(d.by_role).map(([role, v]) => `
-        <div class="bar-row">
-          <div class="bar-label">${role}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${(v/maxRole)*100}%"></div></div>
-          <div class="bar-value">${v}</div>
-        </div>
-      `).join('');
-      const days = d.velocity_14d || [];
-      const maxV = Math.max(...days.map(x => x.done), 1);
-      $('an-velocity').innerHTML = days.length === 0
-        ? '<div class="empty-state">no completed tasks in the last 14 days</div>'
-        : days.map(x => `
-          <div class="bar-row">
-            <div class="bar-label">${x.day.slice(5)}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${(x.done/maxV)*100}%; background:linear-gradient(90deg, var(--green), #86efac);"></div></div>
-            <div class="bar-value">${x.done}</div>
+
+      // Phase completion
+      const phaseStats = {};
+      for (const t of state.tasks) {
+        const p = t.phase || 'Uncategorised';
+        phaseStats[p] = phaseStats[p] || { total: 0, done: 0 };
+        phaseStats[p].total += 1;
+        if (t.status === 'done') phaseStats[p].done += 1;
+      }
+      $('an-phase-completion').innerHTML = Object.entries(phaseStats).map(([p, s]) => {
+        const pct = s.total ? Math.round((s.done/s.total)*100) : 0;
+        return `
+          <div class="bar-chart-row">
+            <div class="bar-row-head">
+              <span class="name">${escape(p)}</span>
+              <span class="value">${pct}%</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${pct >= 50 ? '#3fb950' : '#ffa657'};"></div></div>
           </div>
-        `).join('');
+        `;
+      }).join('');
+
+      // Radar — Productivity
+      const completionPct = total ? (done / total) * 100 : 0;
+      const aiUsage = 75;
+      const onTrack = Math.max(0, 100 - (overdue / Math.max(total, 1)) * 100);
+      const inProgressPct = (inProgress / Math.max(total, 1)) * 100;
+      const efficiency = 60;
+      $('an-radar').innerHTML = svgRadar(
+        ['Completion', 'AI Usage', 'On Track', 'In Progress', 'Efficiency'],
+        [completionPct, aiUsage, onTrack, inProgressPct, efficiency],
+        100, 210,
+      );
+
+      // AI vs Human
+      const aiTasks = total; // all tasks in this demo are agent-driven
+      const humanTasks = 0;
+      const aiPct = total ? Math.round((aiTasks / (aiTasks + humanTasks || 1)) * 100) : 0;
+      const health = Math.round(completionPct * 0.4 + onTrack * 0.4 + aiUsage * 0.2);
+      $('an-collab').innerHTML = `
+        <div class="collab-row">
+          <div class="collab-head">
+            <div class="icon-tile" style="background:rgba(88,166,255,0.1); color:#58a6ff;">${iconFor('bot')}</div>
+            <span class="label">AI Agents</span>
+            <span class="value" style="color:#58a6ff;">${aiTasks}</span>
+            <span class="pct">(${aiPct}%)</span>
+          </div>
+          <div class="bar-track" style="height:8px;"><div class="bar-fill" style="width:${aiPct}%; background:#58a6ff;"></div></div>
+        </div>
+        <div class="collab-row">
+          <div class="collab-head">
+            <div class="icon-tile" style="background:rgba(63,185,80,0.1); color:#3fb950;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <span class="label">Human Tasks</span>
+            <span class="value" style="color:#3fb950;">${humanTasks}</span>
+            <span class="pct">(${100 - aiPct}%)</span>
+          </div>
+          <div class="bar-track" style="height:8px;"><div class="bar-fill" style="width:${100-aiPct}%; background:#3fb950;"></div></div>
+        </div>
+        <div class="collab-health">
+          <div class="label">Project Health Score</div>
+          <div class="value">${health}/100</div>
+          <div class="sub">Based on completion, timeliness, and activity</div>
+        </div>
+      `;
     }
 
+    // v1.9 dom-perfect Advanced Insights
     function renderAdvanced(d) {
       const total = Object.values(d.by_status).reduce((a,b)=>a+b, 0);
-      const blocked = d.by_status.review || 0;
-      const wipRatio = total ? Math.round(((d.by_status.in_progress || 0) / total) * 100) : 0;
-      $('adv-stat-grid').innerHTML = `
-        <div class="stat-card error"><div class="label">Overdue</div><div class="value">${d.overdue_count}</div><div class="sub">past due, not done</div></div>
-        <div class="stat-card warn"><div class="label">No due date</div><div class="value">${d.no_due_date_count}</div><div class="sub">need scheduling</div></div>
-        <div class="stat-card error"><div class="label">Unassigned</div><div class="value">${d.unassigned_count}</div><div class="sub">need an owner</div></div>
-        <div class="stat-card accent"><div class="label">WIP ratio</div><div class="value">${wipRatio}%</div><div class="sub">in progress / total</div></div>
-        <div class="stat-card warn"><div class="label">Blocked at review</div><div class="value">${blocked}</div><div class="sub">awaiting signoff</div></div>
-        <div class="stat-card green"><div class="label">14-day velocity</div><div class="value">${(d.velocity_14d||[]).reduce((a,x)=>a+x.done,0)}</div><div class="sub">tasks completed</div></div>
-      `;
-      $('adv-overdue').innerHTML = (d.overdue_tasks || []).length === 0
-        ? '<tr><td colspan="4" class="empty-state">no overdue tasks 🎉</td></tr>'
-        : d.overdue_tasks.map(t => {
-          const d2 = new Date(t.due_date);
-          const days = Math.round((new Date() - d2) / 86400000);
-          return `
-            <tr data-id="${t.id}" style="cursor:pointer;">
-              <td>${escape(t.title)}</td>
-              <td><span class="role-pill ${t.assigned_role}" style="font-size:0.62rem; padding:0.13rem 0.45rem; border-radius:999px;">${escape(t.assigned_role)}</span></td>
-              <td><span style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-dim)">${escape(t.status)}</span></td>
-              <td style="color:var(--error); font-family:'JetBrains Mono',monospace; font-size:0.72rem">${days}d overdue</td>
-            </tr>
-          `;
-        }).join('');
-      $$$('tr', $('adv-overdue')).forEach(tr => {
-        if (tr.dataset.id) tr.addEventListener('click', () => openTask(parseInt(tr.dataset.id)));
-      });
-      // Per-agent throughput
-      const max = Math.max(...d.per_agent_load.map(x => x.done + x.open), 1);
-      $('adv-agent-throughput').innerHTML = d.per_agent_load.map(p => `
-        <div class="bar-row">
-          <div class="bar-label">${p.assigned_role}</div>
-          <div class="bar-track" style="display:flex; padding:0;">
-            <div style="background:var(--green); height:100%; width:${(p.done/max)*100}%;"></div>
-            <div style="background:var(--accent); height:100%; width:${(p.open/max)*100}%;"></div>
+      const done = d.by_status.done || 0;
+      const completion = total ? Math.round((done/total)*100) : 0;
+      const overdue = d.overdue_count || 0;
+      const onTime = total ? Math.max(0, Math.round(100 - (overdue / total) * 100)) : 100;
+      const health = Math.round(completion * 0.4 + onTime * 0.4 + 50 * 0.2);
+      const active = d.by_status.in_progress || 0;
+
+      $('adv-stat-row').innerHTML = `
+        <div class="adv-stat-card" style="--card-accent:#f85149;">
+          <div class="icon-tile" style="background:rgba(248,81,73,0.1); color:#f85149;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
           </div>
-          <div class="bar-value">${p.done}/${p.open + p.done}</div>
+          <div class="stat-body">
+            <div class="label">Project Health</div>
+            <div class="value">${health}%</div>
+          </div>
         </div>
-      `).join('') + `
-        <div style="font-size:0.7rem; color:var(--fg-faint); margin-top:0.5rem; font-family:'JetBrains Mono',monospace;">
-          <span style="color:var(--green)">■</span> done   <span style="color:var(--accent)">■</span> open
+        <div class="adv-stat-card" style="--card-accent:#58a6ff;">
+          <div class="icon-tile" style="background:rgba(88,166,255,0.1); color:#58a6ff;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="stat-body">
+            <div class="label">Completion</div>
+            <div class="value">${completion}%</div>
+          </div>
+        </div>
+        <div class="adv-stat-card" style="--card-accent:#3fb950;">
+          <div class="icon-tile" style="background:rgba(63,185,80,0.1); color:#3fb950;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="stat-body">
+            <div class="label">On-Time Rate</div>
+            <div class="value">${onTime}%</div>
+          </div>
+        </div>
+        <div class="adv-stat-card" style="--card-accent:#58a6ff;">
+          <div class="icon-tile" style="background:rgba(88,166,255,0.1); color:#58a6ff;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg>
+          </div>
+          <div class="stat-body">
+            <div class="label">Active Tasks</div>
+            <div class="value">${active}</div>
+          </div>
         </div>
       `;
+
+      // Health radar
+      $('adv-health-radar').innerHTML = svgRadar(
+        ['Completion', 'Timeliness', 'Progress', 'Activity', 'Momentum'],
+        [completion, onTime, (active/Math.max(total,1))*100, 50, 50],
+        100, 220,
+      );
+
+      // Quick metrics
+      $('adv-quick-metrics').innerHTML = `
+        <div class="adv-quick-row"><span class="name">Total Tasks</span><span class="value" style="color:#58a6ff;">${total}</span></div>
+        <div class="adv-quick-row"><span class="name">Completed</span><span class="value" style="color:#3fb950;">${done}</span></div>
+        <div class="adv-quick-row"><span class="name">In Progress</span><span class="value" style="color:#58a6ff;">${active}</span></div>
+        <div class="adv-quick-row"><span class="name">Overdue</span><span class="value" style="color:#f85149;">${overdue}</span></div>
+        <div class="adv-quick-row"><span class="name">Agents</span><span class="value" style="color:#bc8cff;">${state.agents.length}</span></div>
+      `;
+
+      // Timeline — 3 weeks bar chart
+      const byWeek = {};
+      for (const t of state.tasks) {
+        if (!t.due_date) continue;
+        const d = new Date(t.due_date);
+        const w = `W${Math.ceil(d.getDate() / 7)}`;
+        byWeek[w] = (byWeek[w] || 0) + 1;
+      }
+      const wRows = Object.entries(byWeek).slice(0, 4).map(([k, v]) => ({
+        label: k, value: v, color: '#58a6ff',
+      }));
+      $('adv-timeline').innerHTML = wRows.length
+        ? svgBarChart(wRows, { h: 150 })
+        : '<div class="empty-state">no scheduled tasks</div>';
+
+      // Agent utilization
+      const byRoleTotal = {};
+      for (const t of state.tasks) byRoleTotal[t.assigned_role] = (byRoleTotal[t.assigned_role] || 0) + 1;
+      $('adv-utilization').innerHTML = Object.entries(byRoleTotal).map(([role, v]) => {
+        const roleDone = state.tasks.filter(t => t.assigned_role === role && t.status === 'done').length;
+        const pct = v ? Math.round((roleDone / v) * 100) : 0;
+        return `
+          <div class="bar-chart-row">
+            <div class="bar-row-head">
+              <span class="name">${escape(role.charAt(0).toUpperCase() + role.slice(1))}</span>
+              <span class="value">${pct}%</span>
+            </div>
+            <div class="bar-track" style="height:4px;"><div class="bar-fill" style="width:${pct}%; background:#ffa657;"></div></div>
+          </div>
+        `;
+      }).join('');
+
+      // Active risks
+      const risks = [];
+      if (overdue > 0) risks.push({ name: 'Overdue Tasks', body: `${overdue} tasks are past their due date and need immediate attention or rescheduling.`, likelihood: 95 });
+      if (active === 0 && total > 0) risks.push({ name: 'Zero Progress', body: 'No tasks are currently in progress. The team may be stalled on dependencies.', likelihood: 85 });
+      if (completion < 10 && total > 10) risks.push({ name: 'Low Progress', body: 'Overall completion rate is below 10%. Phase transitions may be blocked.', likelihood: 80 });
+      $('adv-risks').innerHTML = risks.length
+        ? risks.map(r => `
+            <div class="adv-risk-row">
+              <div class="adv-risk-head">
+                <span class="dot"></span>
+                <span class="name">${escape(r.name)}</span>
+                <span class="likelihood">${r.likelihood}% likelihood</span>
+              </div>
+              <div class="adv-risk-body">${escape(r.body)}</div>
+            </div>
+          `).join('')
+        : '<div class="empty-state">no active risks</div>';
     }
 
     // ---- AI Insights ----

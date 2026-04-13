@@ -112,96 +112,162 @@ OLLAMA_URLS = _ollama_candidates(OLLAMA_URL)
 # ─── Curated model catalogue for the 16GB Xnode ─────────────────────────────
 # Each entry: (id, label, approx_ram_gb, notes)
 # Anything over ~9GB will OOM on a 16GB host running our 6 containers.
+# All entries fit comfortably on the 16GB Xnode. Removed the oversize
+# qwen3.5:27b/35b/122b entries because they OOM the host.
+# Qwen 3.5 is multimodal (text + image) and supports thinking — we strip
+# <think> tags via stream_generate's regex pass.
 RECOMMENDED_MODELS = [
-    {"id": "hermes3:3b",      "label": "Hermes 3 · 3B",        "ram_gb": 2.0,  "ok": True,  "notes": "default — fast, NousResearch tool-calling model"},
-    {"id": "llama3.2:3b",     "label": "Llama 3.2 · 3B",       "ram_gb": 2.0,  "ok": True,  "notes": "Meta's small workhorse"},
-    {"id": "qwen2.5:3b",      "label": "Qwen 2.5 · 3B",        "ram_gb": 2.0,  "ok": True,  "notes": "Alibaba small, strong reasoning"},
-    {"id": "gemma2:2b",       "label": "Gemma 2 · 2B",         "ram_gb": 1.6,  "ok": True,  "notes": "Google tiny — fastest option"},
-    {"id": "phi3.5:3.8b",     "label": "Phi 3.5 · 3.8B",       "ram_gb": 2.3,  "ok": True,  "notes": "Microsoft compact reasoning"},
-    {"id": "qwen2.5:7b",      "label": "Qwen 2.5 · 7B",        "ram_gb": 4.7,  "ok": True,  "notes": "best mid-size for this Xnode"},
-    {"id": "llama3.1:8b",     "label": "Llama 3.1 · 8B",       "ram_gb": 4.9,  "ok": True,  "notes": "Meta mid-size"},
-    {"id": "mistral-nemo:12b","label": "Mistral Nemo · 12B",   "ram_gb": 7.1,  "ok": True,  "notes": "tight fit but works"},
-    {"id": "qwen2.5:14b",     "label": "Qwen 2.5 · 14B",       "ram_gb": 9.0,  "ok": True,  "notes": "absolute max for 16GB · slow"},
-    {"id": "qwen3:8b",        "label": "Qwen 3 · 8B (no-think)","ram_gb": 5.2,  "ok": True,  "notes": "thinking model — we strip <think> tags"},
-    {"id": "qwen2.5:32b",     "label": "Qwen 2.5 · 32B",       "ram_gb": 19.0, "ok": False, "notes": "WILL OOM — needs 24GB+ host"},
-    {"id": "llama3.3:70b",    "label": "Llama 3.3 · 70B",      "ram_gb": 42.0, "ok": False, "notes": "WILL OOM — needs 48GB+ host"},
+    {"id": "qwen3.5:4b",  "label": "Qwen 3.5 · 4B",         "ram_gb": 3.4, "ok": True, "notes": "default — multimodal, thinking, best balance for 16GB"},
+    {"id": "qwen3.5:0.8b","label": "Qwen 3.5 · 0.8B (tiny)","ram_gb": 1.0, "ok": True, "notes": "fastest — sub-second responses, multimodal"},
+    {"id": "qwen3.5:2b",  "label": "Qwen 3.5 · 2B",         "ram_gb": 2.7, "ok": True, "notes": "small Qwen 3.5 — multimodal, fast"},
+    {"id": "qwen3.5:9b",  "label": "Qwen 3.5 · 9B",         "ram_gb": 6.6, "ok": True, "notes": "biggest Qwen 3.5 that fits — slower but smarter"},
+    {"id": "hermes3:3b",  "label": "Hermes 3 · 3B",         "ram_gb": 2.0, "ok": True, "notes": "NousResearch tool-calling model"},
+    {"id": "llama3.2:3b", "label": "Llama 3.2 · 3B",        "ram_gb": 2.0, "ok": True, "notes": "Meta's small workhorse"},
+    {"id": "qwen2.5:3b",  "label": "Qwen 2.5 · 3B",         "ram_gb": 2.0, "ok": True, "notes": "previous-gen Qwen small"},
+    {"id": "gemma2:2b",   "label": "Gemma 2 · 2B",          "ram_gb": 1.6, "ok": True, "notes": "Google tiny — alternative fast option"},
+    {"id": "phi3.5:3.8b", "label": "Phi 3.5 · 3.8B",        "ram_gb": 2.3, "ok": True, "notes": "Microsoft compact reasoning"},
+    {"id": "qwen2.5:7b",  "label": "Qwen 2.5 · 7B",         "ram_gb": 4.7, "ok": True, "notes": "previous-gen Qwen mid-size"},
+    {"id": "llama3.1:8b", "label": "Llama 3.1 · 8B",        "ram_gb": 4.9, "ok": True, "notes": "Meta mid-size"},
 ]
-DEFAULT_MODEL = os.environ.get("CHAT_MODEL", "hermes3:3b")
+DEFAULT_MODEL = os.environ.get("CHAT_MODEL", "qwen3.5:4b")
 
 # Default agents seeded on startup. The role names match the container
 # names (e.g. hermes-agent-pm → role "pm"). Adding a new role: add an
 # entry here AND deploy a new agent container with the matching name.
 #
-# `tier` is used by the org chart view: 'lead' agents sit above 'team'
-# agents in the hierarchy. The CEO is the top of the pyramid; the PM
-# coordinates the team; coder/researcher/writer are individual contributors.
+# v1.9: 7 specialist hardware-launch agents (was 5 generic ones)
+#   atlas — Launch Director (executive, replaces ceo)
+#   orion — Program Manager (lead, replaces pm)
+#   forge — Hardware Engineer (team, replaces coder)
+#   vesper — Component Researcher (team, replaces researcher)
+#   echo — Launch Copywriter (team, was writer)
+#   lyra — Brand & Web Designer (team, NEW)
+#   sage — DevRel & Docs (team, NEW)
+#
+# Each agent has `specialties` (shown as pills on cards), `color`
+# (the accent for the icon tile / left ribbon), and `icon` (lucide name).
 DEFAULT_AGENTS = [
     {
-        "name": "ceo",
-        "role": "Chief Executive Officer",
+        "name": "atlas",
+        "role": "Launch Director",
         "tier": "executive",
         "reports_to": None,
+        "color": "#8b5cf6",
+        "icon": "compass",
+        "specialties": ["Strategy", "Cross-functional Coordination", "Risk Management", "Investor Relations"],
         "system_prompt": (
-            "You are the CEO of an OpenxAI hardware launch initiative. "
-            "Your job is to set strategy, make resource allocation decisions, "
-            "and unblock the team. When the user asks you something, respond "
-            "with vision and decisiveness — you delegate execution to your PM "
-            "but you own outcomes. Keep responses short, executive-level. "
-            "Focus on what matters for the launch: shipping on time, hardware "
-            "quality, customer adoption, and sovereignty principles."
+            "You are Atlas, the Launch Director for the OpenxAI Own1 hardware launch. "
+            "You set the overall direction, allocate resources, manage risk across "
+            "all workstreams, and own investor relations. You delegate execution to "
+            "your Program Manager Orion. When the user asks you something, respond "
+            "with vision and decisiveness. Keep responses short, executive-level. "
+            "Focus on shipping the Own1 on time, hardware quality, customer adoption, "
+            "and sovereign-AI principles."
         ),
     },
     {
-        "name": "pm",
-        "role": "Project Manager",
+        "name": "orion",
+        "role": "Program Manager",
         "tier": "lead",
-        "reports_to": "ceo",
+        "reports_to": "atlas",
+        "color": "#6366f1",
+        "icon": "clipboard-list",
+        "specialties": ["Workstream Planning", "Phase Tracking", "Dependencies", "Milestone Reporting"],
         "system_prompt": (
-            "You are the project manager for the OpenxAI hardware launch. "
-            "You receive high-level goals from the CEO and break them into "
-            "concrete, single-step subtasks for the team (coder, researcher, "
-            "writer). Output ONE subtask at a time as a short title and 1-3 "
-            "sentence description. Don't try to do specialist work yourself — "
-            "delegate. Track risks and dependencies."
+            "You are Orion, the Program Manager for the OpenxAI Own1 hardware launch. "
+            "You receive strategic goals from Atlas (Launch Director) and break them "
+            "into concrete, single-step subtasks for your specialist team: Forge "
+            "(hardware engineer), Vesper (component researcher), Lyra (brand & web "
+            "designer), Echo (launch copywriter), and Sage (devrel & docs). Output "
+            "ONE subtask at a time as a short title and 1-3 sentence description. "
+            "Don't do specialist work yourself — delegate. Track risks, dependencies, "
+            "and phase transitions."
         ),
     },
     {
-        "name": "coder",
-        "role": "Software Engineer",
+        "name": "forge",
+        "role": "Hardware Engineer",
         "tier": "team",
-        "reports_to": "pm",
+        "reports_to": "orion",
+        "color": "#5ee5e0",
+        "icon": "cpu",
+        "specialties": ["Firmware", "On-device LLM Runtime", "Drivers", "BOM Optimization"],
         "system_prompt": (
-            "You are a senior software engineer on the OpenxAI hardware launch. "
-            "You handle firmware, drivers, the on-device LLM runtime (ollama / "
-            "vLLM), and cloud-side integrations. Produce working code with "
-            "brief explanations. Use code blocks. Prefer simple, correct, "
-            "shippable solutions over clever ones."
+            "You are Forge, the lead hardware engineer on the Own1 launch. You "
+            "handle firmware (Rust bootloader, NixOS rootfs), drivers, the on-device "
+            "LLM runtime (ollama / vLLM), board bring-up, and cloud-side integrations. "
+            "Produce working code with brief explanations. Use code blocks. Prefer "
+            "simple, correct, shippable solutions over clever ones. You think in "
+            "terms of BOM cost, thermal envelope, and TOPS-per-watt."
         ),
     },
     {
-        "name": "researcher",
-        "role": "Hardware Researcher",
+        "name": "vesper",
+        "role": "Component Researcher",
         "tier": "team",
-        "reports_to": "pm",
+        "reports_to": "orion",
+        "color": "#ffa657",
+        "icon": "search",
+        "specialties": ["Sourcing", "NPU Benchmarks", "Certifications (FCC/CE/RoHS)", "Lead Times"],
         "system_prompt": (
-            "You are a hardware researcher on the OpenxAI hardware launch. "
-            "You investigate component selection, supplier options, certification "
-            "requirements (FCC, CE, RoHS), benchmark data for on-device "
-            "inference, and competitive analysis. Produce structured "
-            "bullet-point summaries. Be honest about uncertainty."
+            "You are Vesper, the component researcher on the Own1 launch. You "
+            "investigate component selection, supplier options, certification "
+            "requirements (FCC, CE, RoHS), benchmark data for on-device inference "
+            "(NPU TOPS, memory bandwidth), competitive analysis vs NVIDIA Project "
+            "DIGITS / Apple M-series, and lead times. Produce structured bullet-point "
+            "summaries. Always cite uncertainty. Recommend 3 options ranked by fit, "
+            "cost, and risk."
         ),
     },
     {
-        "name": "writer",
-        "role": "Technical Writer",
+        "name": "lyra",
+        "role": "Brand & Web Designer",
         "tier": "team",
-        "reports_to": "pm",
+        "reports_to": "orion",
+        "color": "#ec4899",
+        "icon": "palette",
+        "specialties": ["Landing Page", "Visual Identity", "Product Renders", "Pitch Deck"],
         "system_prompt": (
-            "You are a technical writer on the OpenxAI hardware launch. "
-            "You produce launch announcements, product pages, documentation, "
-            "spec sheets, FAQs, and developer onboarding guides. Match the "
-            "tone of the existing OpenxAI brand: technical, sovereign, "
-            "permissionless. Keep paragraphs short. Avoid marketing fluff."
+            "You are Lyra, the brand and web designer on the Own1 launch. You handle "
+            "the launch landing page (copy + layout), visual identity (logo, palette, "
+            "type), product renders (CAD-driven hero shots), pitch deck slides, and "
+            "the press kit. Match the OpenxAI brand: technical, sovereign, permissionless, "
+            "no marketing fluff. Output is design briefs, layout specs, and copy in "
+            "Markdown that a design team can execute."
+        ),
+    },
+    {
+        "name": "echo",
+        "role": "Launch Copywriter",
+        "tier": "team",
+        "reports_to": "orion",
+        "color": "#58a6ff",
+        "icon": "feather",
+        "specialties": ["Launch Announcement", "Press Release", "Investor Outreach Emails", "FAQ"],
+        "system_prompt": (
+            "You are Echo, the launch copywriter on the Own1 launch. You produce "
+            "launch announcements, press releases, investor outreach emails, FAQs, "
+            "social posts, and KOL briefing decks. Match the OpenxAI brand: technical, "
+            "sovereign, permissionless, anti-cloud. Keep paragraphs short. Avoid "
+            "marketing fluff. Lead with concrete numbers (TOPS, watts, dollars) and "
+            "the sovereignty story."
+        ),
+    },
+    {
+        "name": "sage",
+        "role": "DevRel & Docs",
+        "tier": "team",
+        "reports_to": "orion",
+        "color": "#3fb950",
+        "icon": "book-open",
+        "specialties": ["Developer Onboarding", "API Docs", "Tutorials", "Hackathon Briefs"],
+        "system_prompt": (
+            "You are Sage, the DevRel and documentation lead on the Own1 launch. "
+            "You produce developer onboarding guides, API docs, tutorials, sample "
+            "apps, hackathon briefs, and the day-one Quick Start. Your audience is "
+            "developers who unbox the device and want to ship something within an "
+            "hour. Write clear numbered steps, include real code, link to runnable "
+            "examples. Tone: precise, helpful, no marketing."
         ),
     },
 ]
@@ -292,7 +358,10 @@ def ensure_schema() -> None:
                 completed_at      TIMESTAMPTZ,
                 -- v1.4: human scheduling fields
                 due_date          TIMESTAMPTZ,
-                assignees         TEXT[] NOT NULL DEFAULT '{}'
+                assignees         TEXT[] NOT NULL DEFAULT '{}',
+                -- v1.9: phase grouping + priority for List/Gantt views
+                phase             TEXT,
+                priority          TEXT NOT NULL DEFAULT 'Medium'
             )
             """
         )
@@ -313,8 +382,14 @@ def ensure_schema() -> None:
         # Add tier/reports_to columns if upgrading from an older schema
         cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS tier TEXT NOT NULL DEFAULT 'team'")
         cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS reports_to TEXT")
+        # v1.9: agent visual + specialty fields
+        cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '#58a6ff'")
+        cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS icon TEXT NOT NULL DEFAULT 'bot'")
+        cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS specialties TEXT[] NOT NULL DEFAULT '{}'")
         cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ")
         cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assignees TEXT[] NOT NULL DEFAULT '{}'")
+        cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS phase TEXT")
+        cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'Medium'")
         # v1.7: settings k/v store for things like the active LLM model
         cur.execute(
             """
@@ -497,16 +572,57 @@ def _sse_from_stream_generate(prompt: str, *, num_predict: int = 400,
 
 
 def seed_agents() -> None:
+    """Seed the 7 v1.9 hardware-launch specialist agents.
+
+    Migration: if the database still has the v1.8 generic agents
+    (ceo/pm/coder/researcher/writer), we DELETE them and let the
+    new ones get inserted fresh. Their tasks are handed off via the
+    role-rename pass below.
+    """
+    new_names = {a["name"] for a in DEFAULT_AGENTS}
+    legacy_names = {"ceo", "pm", "coder", "researcher", "writer"}
+    legacy_to_new = {
+        "ceo":        "atlas",
+        "pm":         "orion",
+        "coder":      "forge",
+        "researcher": "vesper",
+        "writer":     "echo",
+    }
     with db_connect() as conn, conn.cursor() as cur:
+        # 1) Reassign tasks from legacy roles → new roles
+        for legacy, new in legacy_to_new.items():
+            cur.execute(
+                "UPDATE tasks SET assigned_role = %s WHERE assigned_role = %s",
+                (new, legacy),
+            )
+        # 2) Update assignees array
+        for legacy, new in legacy_to_new.items():
+            cur.execute(
+                "UPDATE tasks SET assignees = array_replace(assignees, %s, %s)",
+                (legacy, new),
+            )
+        # 3) Drop any legacy agent rows that aren't in the new set.
+        # (current_task_id FK is ON DELETE SET NULL on tasks via the
+        # task definition, but we explicitly null current_task_id first
+        # because the agents table doesn't have an FK on it.)
+        cur.execute(
+            "DELETE FROM agents WHERE name = ANY(%s) AND name <> ALL(%s)",
+            (list(legacy_names), list(new_names)),
+        )
+        # 4) Upsert the new agents
         for agent in DEFAULT_AGENTS:
             cur.execute(
                 """
-                INSERT INTO agents (name, role, system_prompt, tier, reports_to)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO agents (name, role, system_prompt, tier, reports_to,
+                                    color, icon, specialties)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (name) DO UPDATE
                 SET role = EXCLUDED.role,
                     tier = EXCLUDED.tier,
-                    reports_to = EXCLUDED.reports_to
+                    reports_to = EXCLUDED.reports_to,
+                    color = EXCLUDED.color,
+                    icon = EXCLUDED.icon,
+                    specialties = EXCLUDED.specialties
                     -- NOTE: system_prompt is NOT updated on redeploy so
                     -- user-edited personas survive across deploys.
                 """,
@@ -516,10 +632,13 @@ def seed_agents() -> None:
                     agent["system_prompt"],
                     agent.get("tier", "team"),
                     agent.get("reports_to"),
+                    agent.get("color", "#58a6ff"),
+                    agent.get("icon", "bot"),
+                    agent.get("specialties", []),
                 ),
             )
         conn.commit()
-    log(f"seeded {len(DEFAULT_AGENTS)} default agents")
+    log(f"seeded {len(DEFAULT_AGENTS)} v1.9 specialist agents")
 
 
 # Seed tasks sourced from ENGINEERING/Master Launch Plan Assiging Roles - Own1.xlsx.
@@ -707,21 +826,77 @@ def seed_demo_project() -> None:
                 "OpenxAI Hardware Launch (Own1)",
                 "Master launch plan for the Own1 sovereign-AI hardware unit. "
                 "Tasks are sourced from the Own1 master roles & tasks spreadsheet "
-                "and re-assigned to the hermes agent fleet (ceo / pm / coder / "
-                "researcher / writer). Real-world human owners are preserved "
-                "in each task description for reference.",
+                "and assigned to the 7 hermes specialist agents: Atlas (Launch "
+                "Director), Orion (Program Manager), Forge (Hardware Engineer), "
+                "Vesper (Component Researcher), Lyra (Brand & Web Designer), "
+                "Echo (Launch Copywriter), Sage (DevRel & Docs).",
             ),
         )
         project_id = cur.fetchone()[0]
+        # v1.9: legacy LAUNCH_TASKS entries use the OLD role names
+        # (ceo/pm/coder/researcher/writer). Map them to the new specialist
+        # agents on the way in. Lyra and Sage get a share of the writer's
+        # work split by keyword.
+        LEGACY_TO_SPECIALIST = {
+            "ceo":        "atlas",
+            "pm":         "orion",
+            "coder":      "forge",
+            "researcher": "vesper",
+            "writer":     "echo",  # default; some get reassigned to lyra/sage below
+        }
+        def remap_role(legacy: str, title: str) -> str:
+            base = LEGACY_TO_SPECIALIST.get(legacy, "echo")
+            t = (title or "").lower()
+            # Split the writer pool: design/visual → lyra, docs/devrel → sage
+            if base == "echo":
+                if any(k in t for k in ("visual", "design", "render", "asset", "brand", "deck", "logo", "landing", "pitch")):
+                    return "lyra"
+                if any(k in t for k in ("doc", "tutorial", "onboard", "guide", "devrel", "developer", "api", "sample app", "example")):
+                    return "sage"
+            return base
+
+        # Hardware launch phases — derived from the new agent role.
+        # Each specialist owns a phase; cross-cutting tasks fall through.
+        PHASE_BY_AGENT = {
+            "atlas":  "Phase 1: Strategy & Investor",
+            "vesper": "Phase 2: Research & Sourcing",
+            "forge":  "Phase 3: Engineering & Build",
+            "lyra":   "Phase 4: Brand & Content",
+            "echo":   "Phase 4: Brand & Content",
+            "sage":   "Phase 5: DevRel & Docs",
+            "orion":  "Phase 6: Launch Operations",
+        }
+        def pick_phase(role: str, title: str) -> str:
+            t = (title or "").lower()
+            if "investor" in t or "fundrais" in t or "legal" in t or "compliance" in t:
+                return "Phase 1: Strategy & Investor"
+            if any(k in t for k in ("research", "sourcing", "competitor", "feedback", "benchmark")):
+                return "Phase 2: Research & Sourcing"
+            if any(k in t for k in ("firmware", "engineer", "demo readiness", "hardware", "spec sheet")):
+                return "Phase 3: Engineering & Build"
+            if any(k in t for k in ("brand", "design", "render", "asset", "visual", "landing", "deck")):
+                return "Phase 4: Brand & Content"
+            if any(k in t for k in ("doc", "tutorial", "onboard", "devrel", "api", "guide", "sample")):
+                return "Phase 5: DevRel & Docs"
+            if any(k in t for k in ("launch", "event", "keynote", "distributor", "partner", "rollout", "ops", "growth", "kol", "ambassador", "community")):
+                return "Phase 6: Launch Operations"
+            return PHASE_BY_AGENT.get(role, "Phase 6: Launch Operations")
+
+        def pick_priority(status: str, i: int) -> str:
+            # Done/in-progress = High (it's already escalated), backlog
+            # the bulk of medium/low so the list isn't all red dots
+            if status in ("done", "review", "in_progress"):
+                return "High"
+            if status == "todo":
+                return "High" if i % 2 == 0 else "Medium"
+            return ("Low", "Medium", "High")[i % 3]
+
         # Stagger due dates across the next ~70 days so the calendar
-        # and gantt views have something interesting to render. The
-        # offset is per-task, not per-status, so each agent gets a
-        # mix of near-term and farther-out work.
+        # and gantt views have something interesting to render.
         from datetime import timedelta
         base = datetime.utcnow()
-        for i, (role, title, description, status) in enumerate(LAUNCH_TASKS):
-            # Earlier statuses (done/review) get past or near dates;
-            # backlog gets pushed out further.
+        for i, (legacy_role, title, description, status) in enumerate(LAUNCH_TASKS):
+            role = remap_role(legacy_role, title)
             if status == "done":
                 offset = -7 - (i % 14)
             elif status == "review":
@@ -733,13 +908,15 @@ def seed_demo_project() -> None:
             else:  # backlog
                 offset = 25 + (i % 45)
             due = base + timedelta(days=offset)
+            phase = pick_phase(role, title)
+            priority = pick_priority(status, i)
             cur.execute(
                 """
                 INSERT INTO tasks (project_id, title, description, assigned_role,
-                                   status, due_date, assignees)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                   status, due_date, assignees, phase, priority)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (project_id, title, description, role, status, due, [role]),
+                (project_id, title, description, role, status, due, [role], phase, priority),
             )
         conn.commit()
     log(f"seeded Own1 project + {len(LAUNCH_TASKS)} launch-plan tasks")
@@ -790,6 +967,7 @@ def list_agents():
         cur.execute(
             """
             SELECT a.id, a.name, a.role, a.tier, a.reports_to, a.status,
+                   a.color, a.icon, a.specialties,
                    a.current_task_id, a.last_seen_at,
                    t.title AS current_task_title,
                    (SELECT COUNT(*) FROM tasks WHERE assigned_role = a.name) AS total_tasks,
@@ -847,7 +1025,7 @@ def list_tasks():
         SELECT t.id, t.project_id, t.parent_task_id, t.title, t.description, t.status,
                t.assigned_role, t.assigned_agent_id, t.output, t.error,
                t.created_at, t.started_at, t.completed_at,
-               t.due_date, t.assignees,
+               t.due_date, t.assignees, t.phase, t.priority,
                a.name AS assigned_agent_name
         FROM tasks t
         LEFT JOIN agents a ON a.id = t.assigned_agent_id
@@ -1009,6 +1187,15 @@ def update_task(task_id):
     if "assigned_role" in data and "assignees" not in data:
         sets.append("assigned_role = %s")
         params.append(data["assigned_role"])
+    if "phase" in data:
+        sets.append("phase = %s")
+        params.append((data["phase"] or "").strip()[:120] or None)
+    if "priority" in data:
+        p = (data["priority"] or "Medium").strip()
+        if p not in ("Low", "Medium", "High"):
+            return jsonify({"error": "priority must be Low|Medium|High"}), 400
+        sets.append("priority = %s")
+        params.append(p)
     if not sets:
         return jsonify({"error": "no updatable fields provided"}), 400
     params.append(task_id)
@@ -1061,7 +1248,8 @@ def create_subtask(task_id):
 def get_agent(name):
     with db_connect_dict() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT id, name, role, tier, reports_to, system_prompt, status FROM agents WHERE name = %s",
+            "SELECT id, name, role, tier, reports_to, system_prompt, status, "
+            "color, icon, specialties FROM agents WHERE name = %s",
             (name,),
         )
         agent = cur.fetchone()

@@ -27,7 +27,10 @@
               user = "ollama";
               host = "0.0.0.0";
               port = 11434;
-              loadModels = [ "hermes3:3b" ];
+              # v1.9: qwen3.5:4b is the new default — multimodal, thinking,
+              # ~3.4GB on disk, ~2.6GB RAM when loaded. hermes3:3b stays
+              # preloaded as a fallback option in the model picker.
+              loadModels = [ "qwen3.5:4b" "hermes3:3b" ];
             };
 
             # Open the firewall so other containers on the host's vz-* bridge

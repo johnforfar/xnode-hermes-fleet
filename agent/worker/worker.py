@@ -29,14 +29,12 @@ import psycopg2
 import requests
 
 # ─── Autonomous delegation chain ────────────────────────────────────────────
-# Roles in the hierarchy: ceo → pm → {coder, researcher, writer}
-# When a `ceo` agent finishes a task, it asks the LLM to break the work
-# into 1-3 PM-level subtasks and inserts them into the queue with
-# parent_task_id pointing back. PM then does the same for specialists.
-# The whole chain runs hands-off without any human in the loop.
+# v1.9 hierarchy: atlas → orion → {forge, vesper, lyra, echo, sage}
+# When atlas finishes a task, it asks the LLM to break it into 1-3 orion
+# subtasks. Orion does the same for specialists. Whole chain hands-off.
 DELEGATION_TARGETS = {
-    "ceo": ["pm"],
-    "pm": ["coder", "researcher", "writer"],
+    "atlas": ["orion"],
+    "orion": ["forge", "vesper", "lyra", "echo", "sage"],
 }
 
 DATABASE_URL = os.environ["DATABASE_URL"]

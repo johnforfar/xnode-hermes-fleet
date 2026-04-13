@@ -17,3 +17,6 @@ __pycache__/
 
 # Local-only engineering notes
 ENGINEERING/
+
+# Local design references (DOM dumps + screenshots) — kept off the public repo
+designs/
